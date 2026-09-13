@@ -29,6 +29,19 @@ enum class ButtonEvent {
     BACK_PRESSED      // Back was pressed
 };
 
+// 12 or 24 hour time format
+enum class TimeFormat {
+    HOUR_12,
+    HOUR_24
+};
+
+// Menu settings
+struct SystemSettings {
+    TimeFormat timeFormat;
+
+    // Add brightness settings?
+}
+
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
     bool enabled;           // Is the alarm on?
