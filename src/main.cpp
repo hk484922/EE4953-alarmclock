@@ -5,10 +5,116 @@
 #include <ssd1306_fonts.h>
 #include <DS3231.h>
 #include <a21/ec11.hpp>
+#include <esp_timer.h>
+#include <cstdio>
 #include "main.h"
 
 namespace {
     State currentState = State::STARTUP;  // The current clock mode
+
+    DS3231 rtc(Wire);
+
+    // Time reported by the RTC during last synchronization
+    uint32_t baseEpoch = 0;
+
+    // ESP32 timer value during last synchronization
+    int64_t baseTimerUs = 0;
+
+    // Time shared by the display, alarms, and menu
+    ClockTime currentTime {};
+
+    constexpr int64_t ONE_DAY_US =
+        24LL * 60LL * 60LL * 1000000LL;
+
+    constexpr uint8_t I2C_SCL_PIN = 0;
+    constexpr uint8_t I2C_SDA_PIN = 1;
+    constexpr uint8_t ENCODER_A_PIN = 2;
+    constexpr uint8_t ENCODER_B_PIN = 4;
+    constexpr uint8_t ENCODER_BUTTON_PIN = 5;
+    constexpr uint8_t BUZZER_PIN = 6;
+    constexpr uint8_t LIGHT_SENSOR_PIN = 7;
+    constexpr uint8_t SNOOZE_BUTTON_PIN = 33;
+    constexpr uint8_t STOP_BUTTON_PIN = 34;
+    constexpr uint8_t MENU_BUTTON_PIN = 35;
+    constexpr uint8_t BACK_BUTTON_PIN = 36;
+    constexpr uint32_t DEBOUNCE_MS = 25;
+
+    struct DebouncedButton {
+        uint8_t pin;
+        bool stableState;
+        bool previousReading;
+        uint32_t changedAtMs;
+    };
+
+    DebouncedButton encoderButton {ENCODER_BUTTON_PIN, HIGH, HIGH, 0};
+    DebouncedButton snoozeButton {SNOOZE_BUTTON_PIN, HIGH, HIGH, 0};
+    DebouncedButton stopButton {STOP_BUTTON_PIN, HIGH, HIGH, 0};
+    DebouncedButton menuButton {MENU_BUTTON_PIN, HIGH, HIGH, 0};
+    DebouncedButton backButton {BACK_BUTTON_PIN, HIGH, HIGH, 0};
+
+    bool buttonWasPressed(DebouncedButton& button) {
+        const uint32_t nowMs = millis();
+        const bool reading = digitalRead(button.pin);
+
+        if (reading != button.previousReading) {
+            button.previousReading = reading;
+            button.changedAtMs = nowMs;
+        }
+
+        if (nowMs - button.changedAtMs < DEBOUNCE_MS ||
+            reading == button.stableState) {
+            return false;
+        }
+
+        button.stableState = reading;
+        return button.stableState == LOW;
+    }
+}
+
+// Start all currently defined hardware interfaces.
+void initializeHardware() {
+    Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+    Wire.setClock(400000);
+
+    initializeRtc();
+    initializeDisplay();
+    initializeEncoder();
+    initializeButtons();
+    initializeBuzzer();
+    initializeLightSensor();
+}
+
+void initializeRtc() {
+    // The NorthernWidget DS3231 object uses the Wire bus initialized above.
+}
+
+void initializeDisplay() {
+    // Wire is already initialized, so -1 keeps the existing bus pin selection.
+    ssd1306_128x64_i2c_initEx(-1, -1, 0x3C);
+    ssd1306_setFixedFont(ssd1306xled_font6x8);
+    ssd1306_clearScreen();
+}
+
+void initializeEncoder() {
+    pinMode(ENCODER_A_PIN, INPUT_PULLUP);
+    pinMode(ENCODER_B_PIN, INPUT_PULLUP);
+    pinMode(ENCODER_BUTTON_PIN, INPUT_PULLUP);
+}
+
+void initializeButtons() {
+    pinMode(SNOOZE_BUTTON_PIN, INPUT_PULLUP);
+    pinMode(STOP_BUTTON_PIN, INPUT_PULLUP);
+    pinMode(MENU_BUTTON_PIN, INPUT_PULLUP);
+    pinMode(BACK_BUTTON_PIN, INPUT_PULLUP);
+}
+
+void initializeBuzzer() {
+    pinMode(BUZZER_PIN, OUTPUT);
+    digitalWrite(BUZZER_PIN, LOW);
+}
+
+void initializeLightSensor() {
+    pinMode(LIGHT_SENSOR_PIN, INPUT);
 }
 
 // Change the current clock mode
@@ -29,10 +135,193 @@ void updateCurrentState() {
 
 // Run once when the ESP32 starts
 void setup() {
+    initializeHardware();
+
+    synchronizeWithRtc();
+    currentTime = readCurrentTime();
+
     enterState(State::RUNNING);
 }
 
 // Run repeatedly while the clock is powered on
 void loop() {
+    serviceRtcSynchronization();
+    serviceClock();
+
+    // Poll inputs
+    EncoderEvent encoderEvent = readEncoderEvent();
+    ButtonEvent buttonEvent = readButtonEvent();
+
+    // Event handling will be added as the Menu and Alarm states are implemented.
+    static_cast<void>(encoderEvent);
+    static_cast<void>(buttonEvent);
+
     updateCurrentState();
+    updateDisplay();
+    updateBrightness();
+}
+
+// Reads hardware RTC and saves both reference values
+void synchronizeWithRtc() {
+    DateTime rtcTime = RTClib::now();
+
+    baseEpoch = rtcTime.unixtime();
+    baseTimerUs = esp_timer_get_time();
+}
+
+// Calculate current time
+uint32_t calculateCurrentEpoch() {
+    int64_t elapsedUs = esp_timer_get_time() - baseTimerUs;
+    uint32_t elapsedSeconds = elapsedUs / 1000000LL;
+
+    return baseEpoch + elapsedSeconds;
+}
+
+// Returns calculated software time
+ClockTime readCurrentTime() {
+    DateTime now(calculateCurrentEpoch());
+
+    return {
+        now.year(),
+        now.month(),
+        now.day(),
+        now.hour(),
+        now.minute(),
+        now.second(),
+        now.dayOfTheWeek()
+    };
+}
+
+// Write a user-confirmed time to the RTC and restart the software-time anchor.
+void setCurrentTime(const ClockTime& time) {
+    const DateTime updated(
+        time.year,
+        time.month,
+        time.day,
+        time.hour,
+        time.minute,
+        time.second
+    );
+
+    rtc.adjust(updated);
+    baseEpoch = updated.unixtime();
+    baseTimerUs = esp_timer_get_time();
+    currentTime = time;
+}
+
+// Refresh the shared time without accessing the RTC hardware.
+void serviceClock() {
+    static uint32_t lastUpdateMs = 0;
+    const uint32_t nowMs = millis();
+
+    if (nowMs - lastUpdateMs < 100) {
+        return;
+    }
+
+    lastUpdateMs = nowMs;
+    currentTime = readCurrentTime();
+}
+
+// Correct the software clock against the RTC once per day.
+void serviceRtcSynchronization() {
+    int64_t timeSinceSync =
+        esp_timer_get_time() - baseTimerUs;
+
+    if (timeSinceSync >= ONE_DAY_US) {
+        synchronizeWithRtc();
+    }
+}
+
+EncoderEvent readEncoderEvent() {
+    if (buttonWasPressed(encoderButton)) {
+        return EncoderEvent::PRESSED;
+    }
+
+    // Each valid quadrature transition contributes one quarter-step.
+    static uint8_t previousState = 0b11;
+    static int8_t movement = 0;
+    static constexpr int8_t TRANSITION_TABLE[16] = {
+         0, -1,  1,  0,
+         1,  0,  0, -1,
+        -1,  0,  0,  1,
+         0,  1, -1,  0
+    };
+
+    const uint8_t currentEncoderState =
+        (digitalRead(ENCODER_A_PIN) << 1) |
+        digitalRead(ENCODER_B_PIN);
+    const uint8_t transition =
+        (previousState << 2) | currentEncoderState;
+
+    previousState = currentEncoderState;
+    movement += TRANSITION_TABLE[transition];
+
+    if (movement >= 4) {
+        movement = 0;
+        return EncoderEvent::CLOCKWISE;
+    }
+
+    if (movement <= -4) {
+        movement = 0;
+        return EncoderEvent::COUNTER_CLOCKWISE;
+    }
+
+    return EncoderEvent::NONE;
+}
+
+ButtonEvent readButtonEvent() {
+    // Stop has highest priority when more than one button is pressed.
+    if (buttonWasPressed(stopButton)) {
+        return ButtonEvent::STOP_PRESSED;
+    }
+    if (buttonWasPressed(snoozeButton)) {
+        return ButtonEvent::SNOOZE_PRESSED;
+    }
+    if (buttonWasPressed(menuButton)) {
+        return ButtonEvent::MENU_PRESSED;
+    }
+    if (buttonWasPressed(backButton)) {
+        return ButtonEvent::BACK_PRESSED;
+    }
+
+    return ButtonEvent::NONE;
+}
+
+// Display shared time
+void updateDisplay() {
+    static uint32_t lastDisplayMs = 0;
+    const uint32_t nowMs = millis();
+
+    if (nowMs - lastDisplayMs < 100) {
+        return;
+    }
+
+    lastDisplayMs = nowMs;
+
+    char timeText[9];
+    snprintf(
+        timeText,
+        sizeof(timeText),
+        "%02u:%02u:%02u",
+        static_cast<unsigned>(currentTime.hour),
+        static_cast<unsigned>(currentTime.minute),
+        static_cast<unsigned>(currentTime.second)
+    );
+
+    char dateText[11];
+    snprintf(
+        dateText,
+        sizeof(dateText),
+        "%02u/%02u/%04u",
+        static_cast<unsigned>(currentTime.month),
+        static_cast<unsigned>(currentTime.day),
+        static_cast<unsigned>(currentTime.year)
+    );
+
+    ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+    ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+}
+
+void updateBrightness() {
+    // Brightness calibration and manual override behavior remain to be defined.
 }

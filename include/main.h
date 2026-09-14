@@ -42,16 +42,6 @@ struct SystemSettings {
     // Add brightness settings?
 };
 
-// Temporary Menu Settings
-struct TempMenu {
-    SystemSettings settings;
-    AlarmConfig alarms[3];
-    ClockTime time;
-
-    bool settingsChanged;
-    bool alarmsChanged;
-    bool timeChanged;
-};
 
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
@@ -76,6 +66,17 @@ struct ClockTime {
     uint8_t weekday; // Calculated weekday
 };
 
+// Temporary Menu Settings
+struct TempMenu {
+    SystemSettings settings;
+    AlarmConfig alarms[3];
+    ClockTime time;
+
+    bool settingsChanged;
+    bool alarmsChanged;
+    bool timeChanged;
+};
+
 // Start the clock hardware
 void initializeHardware();      // Start all hardware
 void initializeDisplay();       // Start the OLED display
@@ -90,8 +91,12 @@ EncoderEvent readEncoderEvent();  // Read the encoder
 ButtonEvent readButtonEvent();    // Read the buttons
 
 // Work with the time and alarm settings
-ClockTime readCurrentTime();                                       // Get the time from the RTC
+ClockTime readCurrentTime();                                       // Get the calculated software time
 void setCurrentTime(const ClockTime& time);                        // Set the RTC time
+void synchronizeWithRtc();                                        // Refresh software time from the RTC
+uint32_t calculateCurrentEpoch();                                 // Add elapsed ESP32 time to the RTC anchor
+void serviceClock();                                               // Refresh the shared current-time snapshot
+void serviceRtcSynchronization();                                  // Resynchronize the RTC anchor once per day
 AlarmConfig loadAlarmConfiguration();                              // Load alarm settings from memory
 void saveAlarmConfiguration(const AlarmConfig& config);            // Save alarm settings to memory
 bool isAlarmDue(const AlarmConfig& config, const ClockTime& time); // Check if the alarm should ring
