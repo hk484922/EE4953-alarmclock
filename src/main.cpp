@@ -23,7 +23,6 @@ void updateCurrentState() {
         case State::RUNNING:        // Show time and check the alarm
         case State::MENU:           // Handle menu input
         case State::ALARM_RINGING:  // Handle the active alarm
-        case State::SNOOZED:        // Wait for snooze to finish
             break;
     }
 }
