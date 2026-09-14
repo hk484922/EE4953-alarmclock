@@ -9,7 +9,7 @@ enum class State {
     RUNNING,        // Showing the time and checking the alarm
     MENU,           // Changing settings
     ALARM_RINGING,  // Alarm is sounding
-    SNOOZED         // Waiting for the alarm to ring again
+    //Removed Snooze state, as it is now handled in the RUNNING state
 };
 
 // Actions from the rotary encoder
@@ -38,9 +38,9 @@ enum class TimeFormat {
 // Menu settings
 struct SystemSettings {
     TimeFormat timeFormat;
-
+    bool ManualBrightness;  // 0 for auto brightness, 1 for manual
     // Add brightness settings?
-}
+};
 
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
