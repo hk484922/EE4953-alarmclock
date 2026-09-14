@@ -42,6 +42,17 @@ struct SystemSettings {
     // Add brightness settings?
 };
 
+// Temporary Menu Settings
+struct TempMenu {
+    SystemSettings settings;
+    AlarmConfig alarms[3];
+    ClockTime time;
+
+    bool settingsChanged;
+    bool alarmsChanged;
+    bool timeChanged;
+};
+
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
     bool enabled;           // Is the alarm on?
