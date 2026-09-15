@@ -33,10 +33,10 @@ namespace {
     constexpr uint8_t ENCODER_BUTTON_PIN = 5;
     constexpr uint8_t BUZZER_PIN = 6;
     constexpr uint8_t LIGHT_SENSOR_PIN = 7;
-    constexpr uint8_t SNOOZE_BUTTON_PIN = 33;
-    constexpr uint8_t STOP_BUTTON_PIN = 34;
-    constexpr uint8_t MENU_BUTTON_PIN = 35;
-    constexpr uint8_t BACK_BUTTON_PIN = 36;
+    constexpr uint8_t SNOOZE_BUTTON_PIN = 15;
+    constexpr uint8_t STOP_BUTTON_PIN = 16;
+    constexpr uint8_t MENU_BUTTON_PIN = 17;
+    constexpr uint8_t BACK_BUTTON_PIN = 18;
     constexpr uint32_t DEBOUNCE_MS = 25;
 
     struct DebouncedButton {
