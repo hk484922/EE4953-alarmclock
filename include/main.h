@@ -42,6 +42,12 @@ struct SystemSettings {
     // Add brightness settings?
 };
 
+// Three different alarm tones
+enum class AlarmTone {
+    TONE_1,
+    TONE_2,
+    TONE_3
+};
 
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
@@ -53,6 +59,7 @@ struct AlarmConfig {
     uint8_t month;          // Alarm month for a date alarm
     uint16_t year;          // Alarm year for a date alarm
     uint16_t snoozeMinutes; // Snooze length
+    AlarmTone tone;         // Alarm sound
 };
 
 // The current time from the RTC

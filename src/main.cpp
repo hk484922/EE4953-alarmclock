@@ -152,9 +152,22 @@ void loop() {
     EncoderEvent encoderEvent = readEncoderEvent();
     ButtonEvent buttonEvent = readButtonEvent();
 
+   
+
     // Event handling will be added as the Menu and Alarm states are implemented.
     static_cast<void>(encoderEvent);
     static_cast<void>(buttonEvent);
+
+     switch (currentState) {
+        case State::STARTUP:
+            break;
+        case State::RUNNING:
+            break;
+        case State::MENU:
+            break;
+        case State::ALARM_RINGING:
+            break;
+    }
 
     updateCurrentState();
     updateDisplay();
