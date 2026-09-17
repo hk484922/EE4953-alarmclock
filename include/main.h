@@ -60,6 +60,7 @@ struct AlarmConfig {
     uint16_t year;          // Alarm year for a date alarm
     uint16_t snoozeMinutes; // Snooze length
     AlarmTone tone;         // Alarm sound
+    uint8_t lastAlarmed;
 };
 
 // The current time from the RTC
