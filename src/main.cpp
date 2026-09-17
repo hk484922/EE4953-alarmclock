@@ -208,7 +208,6 @@ ClockTime readCurrentTime() {
         now.hour(),
         now.minute(),
         now.second(),
-        now.dayOfTheWeek()
     };
 }
 

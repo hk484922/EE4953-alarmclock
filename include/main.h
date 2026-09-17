@@ -70,7 +70,6 @@ struct ClockTime {
     uint8_t hour;    // Current hour
     uint8_t minute;  // Current minute
     uint8_t second;  // Current second
-    uint8_t weekday; // Calculated weekday
 };
 
 // Temporary Menu Settings
