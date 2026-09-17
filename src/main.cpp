@@ -12,6 +12,13 @@
 namespace {
     State currentState = State::STARTUP;  // The current clock mode
 
+    AlarmConfig Alarm1; 
+    AlarmConfig Alarm2;
+    AlarmConfig Alarm3;
+
+    uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
+
+
     DS3231 rtc(Wire);
 
     // Time reported by the RTC during last synchronization
