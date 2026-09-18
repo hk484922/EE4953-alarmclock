@@ -220,7 +220,40 @@ void loop() {
                     break;
 
                 case MenuState::CLOCK_MENU:
-                   
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 2) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 2;
+                        }
+                    }
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                       if (menuIndex == 0) {
+                            //Time set configuration
+                              
+                         } else if (menuIndex == 1) {
+                        //Date set configuration
+                        } else if (menuIndex == 2) {
+                            // Save time and date Clock configuration
+                            //NEED TO ADD FUNCTION TO SAVE TIME AND DATE TO RTC & MCU
+                            menuIndex = 0;
+                            currentMenu = MenuState::MAIN_MENU;
+                            currentState = State::MENU; 
+                        }
+                    }
+                        if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                            currentMenu = MenuState::MAIN_MENU;
+                            currentState = State::MENU;
+                    }
+                        if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                            currentMenu = MenuState::MAIN_MENU;
+                            currentState = State::RUNNING;
+                    }
+
                     break;
 
                 case MenuState::ALARM_SELECT:
@@ -238,8 +271,8 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         selectedAlarm = menuIndex;
                         tempAlarm = alarms[selectedAlarm];
+                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
-                        menuIndex = 0;
                        
                     }
 
@@ -251,18 +284,19 @@ void loop() {
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }
+
                     break;
 
                 case MenuState::ALARM_MENU:
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
-                        if(menuIndex > 4) {
+                        if(menuIndex > 5) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
                         if(menuIndex < 0) {
-                            menuIndex = 4;
+                            menuIndex = 5;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
@@ -275,8 +309,14 @@ void loop() {
                         } else if (menuIndex == 3) {
                         // Type state configuration   
                         } else if (menuIndex == 4) {
-                        //Snooze state configuration
-                        }
+                        //Snooze state configuration                        
+                        } else if (menuIndex == 5) {
+                            //Saves alarm configurations and loads tempAlarm into selected alarm
+                            alarms[selectedAlarm] = tempAlarm;
+                            menuIndex = 0;
+                            currentMenu = MenuState::ALARM_SELECT;
+                            currentState = State::MENU; 
+                        }    
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
