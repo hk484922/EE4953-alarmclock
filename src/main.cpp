@@ -12,12 +12,15 @@
 namespace {
     State currentState = State::STARTUP;  // The current clock mode
 
-    AlarmConfig Alarm1; 
-    AlarmConfig Alarm2;
-    AlarmConfig Alarm3;
+    //Alarm data for 3 alarms and a temporary alarm objects
+    AlarmConfig Alarm1 {}; 
+    AlarmConfig Alarm2 {};
+    AlarmConfig Alarm3 {};
+    AlarmConfig tempAlarm {}; // Used for alarm menu data
 
     uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
 
+    a21::EC11 encoder; // Instance of encoder class
 
     DS3231 rtc(Wire);
 
@@ -29,6 +32,13 @@ namespace {
 
     // Time shared by the display, alarms, and menu
     ClockTime currentTime {};
+    ClockTime tempTime {}; // Used for clocktime menu data
+
+    MenuState currentMenu = MenuState::MAIN_MENU;
+
+    int menuIndex = 0;
+    int selectedAlarm = 0;
+
 
     constexpr int64_t ONE_DAY_US =
         24LL * 60LL * 60LL * 1000000LL;
@@ -171,6 +181,19 @@ void loop() {
         case State::RUNNING:
             break;
         case State::MENU:
+
+            switch (currentMenu) {
+                case MenuState::MAIN_MENU:
+                    break;
+                case MenuState::CLOCK_MENU:
+                    break;
+                case MenuState::ALARM_SELECT:
+                    break;
+                case MenuState::ALARM_MENU:
+                    break;
+
+            }
+
             break;
         case State::ALARM_RINGING:
             break;

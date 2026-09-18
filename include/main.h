@@ -35,6 +35,36 @@ enum class TimeFormat {
     HOUR_24
 };
 
+// States within menu
+enum class MenuState {
+    MAIN_MENU, //  First menu screen, shows options for clocktime or alarm
+    CLOCK_MENU, // Jumps to clocktime setting screen
+    ALARM_SELECT, // Second menu screen, shows options for alarm 1, 2, or 3
+    ALARM_MENU // Jumps to alarm setting screen
+};
+
+// Main menu shows options for clocktime or alarm
+enum class MainMenu {
+    CLOCK_MENU,
+    ALARM_SELECT 
+};
+
+// Alarm menu selection
+enum class AlarmSelection {
+    ALARM_1,
+    ALARM_2,
+    ALARM_3
+};
+// Alarm items show the configurable alarm settings
+enum class AlarmMenu {
+    ENABLED, // Is the alarm enabled
+    ALARM_TYPE, // Is it a daily-repeated alarm or one-time alarm?
+    TIME, // Time for alarm to sound
+    DATE, // Date for one-time alarms, will not be relevent for repeated alarms
+    SNOOZE_TIME // How long will alarm snooze for?
+};
+
+
 // Menu settings
 struct SystemSettings {
     TimeFormat timeFormat;
@@ -60,7 +90,7 @@ struct AlarmConfig {
     uint16_t year;          // Alarm year for a date alarm
     uint16_t snoozeMinutes; // Snooze length
     AlarmTone tone;         // Alarm sound
-    uint8_t lastAlarmed;
+    uint8_t lastAlarmed;    // The last time the alarm sounded
 };
 
 // The current time from the RTC
