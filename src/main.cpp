@@ -46,7 +46,7 @@ namespace {
     constexpr uint8_t ENCODER_A_PIN = 2;
     constexpr uint8_t ENCODER_B_PIN = 4;
     constexpr uint8_t ENCODER_BUTTON_PIN = 5;
-    constexpr uint8_t BUZZER_PIN = 6;
+    constexpr uint8_t BUZZER_PIN = 11;
     constexpr uint8_t LIGHT_SENSOR_PIN = 7;
     constexpr uint8_t SNOOZE_BUTTON_PIN = 15;
     constexpr uint8_t STOP_BUTTON_PIN = 16;
@@ -175,7 +175,8 @@ void loop() {
     EncoderEvent encoderEvent = readEncoderEvent();
     ButtonEvent buttonEvent = readButtonEvent();
 
-   
+    //testing boot
+    //tone(BUZZER_PIN, 1000, 10); // Play a 1kHz tone for 10ms
 
     // Button handling will be added as the Menu and Alarm states are implemented.
     static_cast<void>(buttonEvent);
@@ -410,6 +411,12 @@ void serviceRtcSynchronization() {
         synchronizeWithRtc();
     }
 }
+
+//Dummy function to test booting
+EncoderEvent readEncoderEvent(){
+    return EncoderEvent::NONE; // Placeholder implementation
+}
+
 /*
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
