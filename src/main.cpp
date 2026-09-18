@@ -13,9 +13,7 @@ namespace {
     State currentState = State::STARTUP;  // The current clock mode
 
     //Alarm data for 3 alarms and a temporary alarm objects
-    AlarmConfig Alarm1 {}; 
-    AlarmConfig Alarm2 {};
-    AlarmConfig Alarm3 {};
+    AlarmConfig alarms[3];
     AlarmConfig tempAlarm {}; // Used for alarm menu data
 
     uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
@@ -88,6 +86,10 @@ namespace {
     }
 }
 
+void pinDidChange() {
+  encoder.checkPins(digitalRead(ENCODER_A_PIN), digitalRead(ENCODER_B_PIN));
+}
+
 // Start all currently defined hardware interfaces.
 void initializeHardware() {
     Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
@@ -116,6 +118,10 @@ void initializeEncoder() {
     pinMode(ENCODER_A_PIN, INPUT_PULLUP);
     pinMode(ENCODER_B_PIN, INPUT_PULLUP);
     pinMode(ENCODER_BUTTON_PIN, INPUT_PULLUP);
+
+    attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), pinDidChange, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), pinDidChange, CHANGE);
+    
 }
 
 void initializeButtons() {
@@ -171,8 +177,7 @@ void loop() {
 
    
 
-    // Event handling will be added as the Menu and Alarm states are implemented.
-    static_cast<void>(encoderEvent);
+    // Button handling will be added as the Menu and Alarm states are implemented.
     static_cast<void>(buttonEvent);
 
      switch (currentState) {
@@ -183,13 +188,105 @@ void loop() {
         case State::MENU:
 
             switch (currentMenu) {
+
                 case MenuState::MAIN_MENU:
+                // Handle encoder events to navigate the main menu
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 1) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 1;
+                        }
+                    }
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            currentMenu = MenuState::CLOCK_MENU;
+                        } else if (menuIndex == 1) {
+                            currentMenu = MenuState::ALARM_SELECT;
+                        }
+                    }
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
                     break;
+
                 case MenuState::CLOCK_MENU:
+                   
                     break;
+
                 case MenuState::ALARM_SELECT:
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 2) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 2;
+                        }
+                    }
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        selectedAlarm = menuIndex;
+                        tempAlarm = alarms[selectedAlarm];
+                        currentMenu = MenuState::ALARM_MENU;
+                        menuIndex = 0;
+                       
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
                     break;
+
                 case MenuState::ALARM_MENU:
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 4) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 4;
+                        }
+                    }
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                       if (menuIndex == 0) {
+                        //Enabled state configuration
+                        } else if (menuIndex == 1) {
+                        //Time state configuration
+                        } else if (menuIndex == 2) {
+                        // Date state configuration
+                        } else if (menuIndex == 3) {
+                        // Type state configuration   
+                        } else if (menuIndex == 4) {
+                        //Snooze state configuration
+                        }
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        currentMenu = MenuState::ALARM_SELECT;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }                
                     break;
 
             }
@@ -273,7 +370,7 @@ void serviceRtcSynchronization() {
         synchronizeWithRtc();
     }
 }
-
+/*
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
         return EncoderEvent::PRESSED;
@@ -310,6 +407,7 @@ EncoderEvent readEncoderEvent() {
 
     return EncoderEvent::NONE;
 }
+*/
 
 ButtonEvent readButtonEvent() {
     // Stop has highest priority when more than one button is pressed.
