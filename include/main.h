@@ -133,7 +133,7 @@ void serviceClock();                                               // Refresh th
 void serviceRtcSynchronization();                                  // Resynchronize the RTC anchor once per day
 AlarmConfig loadAlarmConfiguration();                              // Load alarm settings from memory
 void saveAlarmConfiguration(const AlarmConfig& config);            // Save alarm settings to memory
-bool isAlarmDue(const AlarmConfig& config, const ClockTime& time); // Check if the alarm should ring
+bool isAlarmDue(const AlarmConfig& config, const ClockTime& time, int alarmIndex); // Check if the alarm should ring
 
 // Change and run the current mode
 void enterState(State newState);  // Change to a new mode

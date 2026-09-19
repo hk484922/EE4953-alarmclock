@@ -16,6 +16,8 @@ namespace {
     AlarmConfig alarms[3];
     AlarmConfig tempAlarm {}; // Used for alarm menu data
 
+    bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
+
     uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
 
     a21::EC11 encoder; // Instance of encoder class
@@ -176,12 +178,17 @@ void setup() {
 void loop() {
     serviceRtcSynchronization();
     serviceClock();
+    
     // Check if any of the alarms are due to ring
-   if (isAlarmDue(alarms[0], currentTime) || isAlarmDue(alarms[1], currentTime) || isAlarmDue(alarms[2], currentTime)) {
-        menuIndex = 0; // Reset menu index when alarm rings
-        currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
-        currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
-    }
+   for(int i = 0; i < 3; i++) {
+        if (isAlarmDue(alarms[i], currentTime, i)) {
+                hasAlarmTriggered[i] = true; // Mark alarm has triggered for the day
+                menuIndex = 0; // Reset menu index when alarm rings
+                currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
+                currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
+                break;
+            }
+        }
 
     // Poll inputs
     EncoderEvent encoderEvent = readEncoderEvent();
@@ -206,6 +213,12 @@ void loop() {
             break;
         case State::RUNNING:
         //When we enter MENU state, we need to set lastMenuInteractionTime = millis() to reset the menu timeout timer
+            if(buttonEvent == ButtonEvent::MENU_PRESSED) {
+                menuIndex = 0; // Reset menu index when entering the menu
+                currentMenu = MenuState::MAIN_MENU; // Reset menu state when entering the menu
+                lastMenuInteractionTime = millis(); // Reset the menu timeout timer on entering the menu
+                currentState = State::MENU;
+            }
             break;
         case State::MENU:
 
@@ -243,6 +256,7 @@ void loop() {
                         currentState = State::RUNNING;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }
@@ -946,6 +960,27 @@ void synchronizeWithRtc() {
     baseEpoch = rtcTime.unixtime();
     baseTimerUs = esp_timer_get_time();
 }
+// Checks if alarm is due based on current time and alarm configuration
+bool isAlarmDue(const AlarmConfig& alarm, const ClockTime& currentTime, int alarmIndex) {
+    if (!alarm.enabled) {
+        return false; // Alarm is not enabled
+    }
+    if (hasAlarmTriggered[alarmIndex]){
+        return false; // Alarm has already triggered for the day
+    }
+
+    if (alarm.daily) {
+        // For daily alarms, only check the time
+        return (alarm.hour == currentTime.hour && alarm.minute == currentTime.minute);
+    } else {
+        // For one-time alarms, check both date and time
+        return (alarm.year == currentTime.year &&
+                alarm.month == currentTime.month &&
+                alarm.day == currentTime.day &&
+                alarm.hour == currentTime.hour &&
+                alarm.minute == currentTime.minute);
+    }
+}
 
 // Calculate current time
 uint32_t calculateCurrentEpoch() {
@@ -1109,7 +1144,7 @@ void updateDisplay() {
 void updateBrightness() {
     // Brightness calibration and manual override behavior remain to be defined.
 }
-
+//This function returns the number of days in a given month, accounting for leap years.
 int daysInMonth(uint8_t month, uint16_t year) {
     switch (month) {
         case 1: case 3: case 5: case 7: case 8: case 10: case 12:
