@@ -205,8 +205,10 @@ void loop() {
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         if (menuIndex == 0) {
+                            tempTime = currentTime; // Load current time into tempTime for editing
                             currentMenu = MenuState::CLOCK_MENU;
                         } else if (menuIndex == 1) {
+                            menuIndex = 0; // Reset menu index for alarm selection
                             currentMenu = MenuState::ALARM_SELECT;
                         }
                     }
@@ -248,7 +250,7 @@ void loop() {
 
                         } else if (menuIndex == 2) {
                             // Save time and date Clock configuration
-                            //NEED TO ADD FUNCTION TO SAVE TIME AND DATE TO RTC & MCU
+                            setCurrentTime(tempTime);
                             menuIndex = 0;
                             currentMenu = MenuState::MAIN_MENU;
                             currentState = State::MENU; 
@@ -329,14 +331,23 @@ void loop() {
                             } else {
                                 tempTime.year = 2000;
                             }
+                            int maxDay = daysInMonth(tempTime.month, tempTime.year);
+                              if(tempTime.day > maxDay) {
+                                  tempTime.day = maxDay;
+                              }
                         } else if(menuIndex == 1) {
                             if(tempTime.month < 12) {
                                 tempTime.month++;
                             } else {
                                 tempTime.month = 1;
                               }
+                              int maxDay = daysInMonth(tempTime.month, tempTime.year);
+                              if(tempTime.day > maxDay) {
+                                  tempTime.day = maxDay;
+                              }
                         } else if(menuIndex == 2) {
-                            if(tempTime.day < 31) {
+                            int maxDay = daysInMonth(tempTime.month, tempTime.year);
+                            if(tempTime.day < maxDay) {
                                 tempTime.day++;
                             } else {
                                 tempTime.day = 1;
@@ -350,17 +361,26 @@ void loop() {
                             } else {
                                 tempTime.year = 2099;
                             }
+                            int maxDay = daysInMonth(tempTime.month, tempTime.year);
+                              if(tempTime.day > maxDay) {
+                                  tempTime.day = maxDay;
+                              }
                         } else if(menuIndex == 1) {
                             if(tempTime.month > 1) {
                                 tempTime.month--;
                             } else {
                                 tempTime.month = 12;
                               }
+                              int maxDay = daysInMonth(tempTime.month, tempTime.year);
+                              if(tempTime.day > maxDay) {
+                                  tempTime.day = maxDay;
+                              }
                             } else if(menuIndex == 2) {
+                                int maxDay = daysInMonth(tempTime.month, tempTime.year);
                                 if(tempTime.day > 1) {
-                                tempTime.day--;
-                            }   else {
-                                tempTime.day = 31;
+                                    tempTime.day--;
+                                } else {
+                                    tempTime.day = maxDay;
                               }
                             }
                     }
@@ -534,9 +554,9 @@ void loop() {
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         if (menuIndex == 0) {
-                            tempAlarm.daily = false;;
+                            tempAlarm.daily = false;
                         } else if (menuIndex == 1) {
-                            tempAlarm.daily = true;;
+                            tempAlarm.daily = true;
                         }
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
@@ -620,18 +640,28 @@ void loop() {
                             } else {
                                 tempAlarm.year = 2000;
                             }
+                            int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
+                              if(tempAlarm.day > maxDay) {
+                                  tempAlarm.day = maxDay;
+                              }
                         } else if(menuIndex == 1) {
                             if(tempAlarm.month < 12) {
                                 tempAlarm.month++;
                             } else {
                                 tempAlarm.month = 1;
                               }
+                              int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
+                              if(tempAlarm.day > maxDay) {
+                                  tempAlarm.day = maxDay;
+                              }
                         } else if(menuIndex == 2) {
-                            if(tempAlarm.day < 31) {
+                            
+                            int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
+                            if(tempAlarm.day < maxDay) {
                                 tempAlarm.day++;
                             } else {
                                 tempAlarm.day = 1;
-                              }
+                              }     
                         }
                     }    
                     else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
@@ -641,17 +671,26 @@ void loop() {
                             } else {
                                 tempAlarm.year = 2099;
                             }
+                            int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
+                              if(tempAlarm.day > maxDay) {
+                                  tempAlarm.day = maxDay;
+                              }
                         } else if(menuIndex == 1) {
                             if(tempAlarm.month > 1) {
                                 tempAlarm.month--;
                             } else {
                                 tempAlarm.month = 12;
                               }
+                              int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
+                              if(tempAlarm.day > maxDay) {
+                                  tempAlarm.day = maxDay;
+                              }
                             } else if(menuIndex == 2) {
+                                int maxDay = daysInMonth(tempAlarm.month, tempAlarm.year);
                                 if(tempAlarm.day > 1) {
-                                tempAlarm.day--;
-                            }   else {
-                                tempAlarm.day = 31;
+                                    tempAlarm.day--;
+                                } else {
+                                    tempAlarm.day = maxDay;
                               }
                             }
                     }
@@ -901,4 +940,22 @@ void updateDisplay() {
 
 void updateBrightness() {
     // Brightness calibration and manual override behavior remain to be defined.
+}
+
+int daysInMonth(uint8_t month, uint16_t year) {
+    switch (month) {
+        case 1: case 3: case 5: case 7: case 8: case 10: case 12:
+            return 31;
+        case 4: case 6: case 9: case 11:
+            return 30;
+        case 2:
+            // Check for leap year
+            if ((year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)) {
+                return 29; // Leap year
+            } else {
+                return 28; // Non-leap year
+            }
+        default:
+            return 0; // Invalid month
+    }
 }

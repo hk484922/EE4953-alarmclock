@@ -151,4 +151,6 @@ bool snoozeExpired();  // Check if snooze time is over
 void updateDisplay();     // Show the current screen
 void updateBrightness();  // Set the display brightness
 
+int daysInMonth(uint8_t month, uint16_t year); // Returns the number of days in a given month and year
+
 #endif // MAIN_H
