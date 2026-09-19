@@ -28,9 +28,15 @@ namespace {
     // ESP32 timer value during last synchronization
     int64_t baseTimerUs = 0;
 
+    unsigned long lastMenuInteractionTime = 0; // Track the last time the user interacted with the menu
+
     // Time shared by the display, alarms, and menu
     ClockTime currentTime {};
     ClockTime tempTime {}; // Used for clocktime menu data
+
+    TimeFormat currentTimeFormat = TimeFormat::HOUR_24; // Default time format
+
+    SystemSettings currentSystemSettings {currentTimeFormat, false, 128}; // Default system settings
 
     MenuState currentMenu = MenuState::MAIN_MENU;
 
@@ -170,11 +176,25 @@ void setup() {
 void loop() {
     serviceRtcSynchronization();
     serviceClock();
+    // Check if any of the alarms are due to ring
+   if (isAlarmDue(alarms[0], currentTime) || isAlarmDue(alarms[1], currentTime) || isAlarmDue(alarms[2], currentTime)) {
+        menuIndex = 0; // Reset menu index when alarm rings
+        currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
+        currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
+    }
 
     // Poll inputs
     EncoderEvent encoderEvent = readEncoderEvent();
     ButtonEvent buttonEvent = readButtonEvent();
 
+    if(encoderEvent != EncoderEvent::NONE || buttonEvent != ButtonEvent::NONE) {
+        lastMenuInteractionTime = millis(); // Reset the menu timeout timer on any interaction
+    }
+    if(isMenuTimedOut()) {
+        currentMenu = MenuState::MAIN_MENU;
+        menuIndex = 0;
+        currentState = State::RUNNING;
+    }
     //testing boot
     //tone(BUZZER_PIN, 1000, 10); // Play a 1kHz tone for 10ms
 
@@ -185,6 +205,7 @@ void loop() {
         case State::STARTUP:
             break;
         case State::RUNNING:
+        //When we enter MENU state, we need to set lastMenuInteractionTime = millis() to reset the menu timeout timer
             break;
         case State::MENU:
 
@@ -194,13 +215,13 @@ void loop() {
                 // Handle encoder events to navigate the main menu
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
-                        if(menuIndex > 1) {
+                        if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
                         if(menuIndex < 0) {
-                            menuIndex = 1;
+                            menuIndex = 2;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
@@ -210,6 +231,10 @@ void loop() {
                         } else if (menuIndex == 1) {
                             menuIndex = 0; // Reset menu index for alarm selection
                             currentMenu = MenuState::ALARM_SELECT;
+                        } else if (menuIndex == 2) {
+                            // Exit menu and return to running state
+                            menuIndex = 0;
+                            currentMenu = MenuState::SYSTEM_MENU;
                         }
                     }
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
@@ -758,7 +783,150 @@ void loop() {
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     } 
-                    break; 
+                    break;
+                case MenuState::SYSTEM_MENU:
+                    // Handle encoder events to navigate the system menu
+                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 2) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 2;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            menuIndex = 0; // Reset menu index for time format selection
+                            currentMenu = MenuState::TIME_FORMAT;
+                        } else if (menuIndex == 1) {
+                            menuIndex = 0; // Reset menu index for brightness selection
+                            currentMenu = MenuState::MANUAL_BRIGHTNESS;
+                        } else if (menuIndex == 2) {
+                            menuIndex = 0; // Reset menu index for brightness level selection
+                            currentMenu = MenuState::BRIGHTNESS_LEVEL;
+                        } 
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    } 
+                    break;
+                case MenuState::TIME_FORMAT:
+                    // Handle encoder events to toggle time format (12-hour or 24-hour)
+                      if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 1) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 1;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            currentTimeFormat = TimeFormat::HOUR_12;
+                            menuIndex = 0; // Reset menu index for time format selection
+                        } else if (menuIndex == 1) {
+                            currentTimeFormat = TimeFormat::HOUR_24;
+                            menuIndex = 0; // Reset menu index for time format selection
+                            
+                        }
+                        currentMenu = MenuState::SYSTEM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::SYSTEM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    } 
+                    break;
+                case MenuState::MANUAL_BRIGHTNESS:
+                    // Handle encoder events to adjust manual brightness level
+                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 1) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 1;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            currentSystemSettings.manualBrightness = false; // Manual brightness disabled, automatic brightness enabled
+                            menuIndex = 0; // Reset menu index for time format selection
+                        } else if (menuIndex == 1) {
+                            currentSystemSettings.manualBrightness = true; // Manual brightness enabled, automatic brightness disabled
+                            menuIndex = 0; // Reset menu index for time format selection
+                            
+                        }
+                        currentMenu = MenuState::SYSTEM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::SYSTEM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    } 
+                    break;
+                case MenuState::BRIGHTNESS_LEVEL:
+                    // Handle encoder events to adjust brightness level
+                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex+=5;
+                        if(menuIndex > 255) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex-=5;
+                        if(menuIndex < 0) {
+                            menuIndex = 255;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        currentSystemSettings.brightnessLevel = menuIndex; // Set the brightness level based on the menu index
+                        menuIndex = 0; // Reset menu index for time format selection
+                        currentMenu = MenuState::SYSTEM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::SYSTEM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    } 
+                    break;
             }
 
             break;
@@ -959,3 +1127,7 @@ int daysInMonth(uint8_t month, uint16_t year) {
             return 0; // Invalid month
     }
 }
+
+bool isMenuTimedOut() {
+    return currentState == State::MENU && millis() - lastMenuInteractionTime >= 60000; // Reset timer on any menu interaction
+    }

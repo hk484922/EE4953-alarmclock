@@ -47,7 +47,11 @@ enum class MenuState {
     ALARM_TYPE, // Jumps to alarm type setting screen
     ALARM_TIME, // Jumps to alarm time setting screen
     ALARM_DATE, // Jumps to alarm date setting screen
-    ALARM_SNOOZE // Jumps to alarm snooze setting screen
+    ALARM_SNOOZE, // Jumps to alarm snooze setting screen
+    SYSTEM_MENU, // Third menu screen, shows options for system settings
+    TIME_FORMAT, // Jumps to time format setting screen
+    MANUAL_BRIGHTNESS, // Jumps to brightness control method setting screen
+    BRIGHTNESS_LEVEL // Jumps to manual brightness level setting screen
 
 };
 
@@ -62,8 +66,8 @@ enum class AlarmSelection {
 // Menu settings
 struct SystemSettings {
     TimeFormat timeFormat;
-    bool ManualBrightness;  // 0 for auto brightness, 1 for manual
-    // Add brightness settings?
+    bool manualBrightness; // True if Manual brightness control is selected, false if Auto brightness control is selected
+    uint8_t brightnessLevel; // 0-255 
 };
 
 // Three different alarm tones
@@ -152,5 +156,8 @@ void updateDisplay();     // Show the current screen
 void updateBrightness();  // Set the display brightness
 
 int daysInMonth(uint8_t month, uint16_t year); // Returns the number of days in a given month and year
+
+//Check if the menu has been idle too long
+bool isMenuTimedOut();
 
 #endif // MAIN_H
