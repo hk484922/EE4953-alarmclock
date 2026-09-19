@@ -18,7 +18,7 @@ namespace {
 
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
 
-    // uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
+    uint8_t currentAlarmIndex = 0;  // Index of the currently active alarm (0, 1, or 2)
 
     a21::EC11 encoder; // Instance of encoder class
 
@@ -94,6 +94,87 @@ namespace {
 
 void pinDidChange() {
   encoder.checkPins(digitalRead(ENCODER_A_PIN), digitalRead(ENCODER_B_PIN));
+}
+
+struct Note {
+    uint16_t frequency;
+    uint16_t durationMs;
+};
+
+Note alarmTone1[] = {
+    { 440, 500 }, // A4
+    { 494, 500 }, // B4
+    { 523, 500 }, // C5
+    { 587, 500 }, // D5
+    { 659, 500 }, // E5
+    { 698, 500 }, // F5
+    { 784, 500 }, // G5
+    { 880, 500 }, // A5
+};
+
+Note alarmTone2[] = {
+    { 880, 500 }, // A5
+    { 784, 500 }, // G5
+    { 698, 500 }, // F5
+    { 659, 500 }, // E5
+    { 587, 500 }, // D5
+    { 523, 500 }, // C5
+    { 494, 500 }, // B4
+    { 440, 500 }, // A4
+};
+
+Note alarmTone3[] = {
+    { 440, 250 }, // A4
+    { 494, 250 }, // B4
+    { 523, 250 }, // C5
+    { 587, 250 }, // D5
+    { 659, 250 }, // E5
+    { 698, 250 }, // F5
+    { 784, 250 }, // G5
+    { 880, 250 }, // A5
+};
+
+Note* alarmTones[] = {alarmTone1, alarmTone2, alarmTone3};
+
+const size_t alarmToneLengths[] = {
+    sizeof(alarmTone1) / sizeof(Note),
+    sizeof(alarmTone2) / sizeof(Note),
+    sizeof(alarmTone3) / sizeof(Note)
+};
+
+uint8_t currentToneIndex = 0; // Index of the current tone in the alarm sequence
+uint8_t currentNoteIndex = 0; // Index of the current note in the current tone
+ulong toneStartTime = 0; // Time when the current tone started playing
+bool alarmSoundActive = false; // Flag to indicate if the alarm sound is currently active
+
+void playAlarmNote() {
+    uint16_t freq = alarmTones[currentToneIndex][currentNoteIndex].frequency;
+    if (freq > 0) tone(BUZZER_PIN, freq);
+    else noTone(BUZZER_PIN);
+    toneStartTime = millis();
+}
+
+void startAlarmSound(uint8_t toneSet) {
+    currentToneIndex = toneSet;
+    currentNoteIndex = 0;
+    alarmSoundActive = true;
+    playAlarmNote();
+}
+
+void updateAlarmSound() {
+    if (!alarmSoundActive) return;
+    if (millis() - toneStartTime >= alarmTones[currentToneIndex][currentNoteIndex].durationMs) {
+        currentNoteIndex++;
+        if (currentNoteIndex >= alarmToneLengths[currentToneIndex]) {
+            currentNoteIndex = 0; // loop
+        }
+        playAlarmNote();
+    }
+}
+
+void stopAlarmSound() {
+    alarmSoundActive = false;
+    noTone(BUZZER_PIN);
 }
 
 // Start all currently defined hardware interfaces.
@@ -184,6 +265,8 @@ void loop() {
                 menuIndex = 0; // Reset menu index when alarm rings
                 currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
                 currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
+                currentAlarmIndex = i; // Set the current alarm index to the alarm that is ringing
+                startAlarmSound(alarms[i].tone);
                 break;
             }
         }
@@ -946,6 +1029,18 @@ void loop() {
             break;
         case State::ALARM_RINGING:
         //when alarm is acknowledged or snoozed, need to set the hasAlarmTriggered flag to true for that alarm index, so it doesn't ring again for the day
+            updateAlarmSound();
+
+            if (buttonEvent == ButtonEvent::STOP_PRESSED) {
+                stopAlarmSound();
+                hasAlarmTriggered[currentAlarmIndex] = true;
+                currentState = State::RUNNING;
+            } else if (buttonEvent == ButtonEvent::SNOOZE_PRESSED) {
+                stopAlarmSound();
+                hasAlarmTriggered[currentAlarmIndex] = true; // don't re-fire today's slot
+                // TODO: schedule a re-trigger `alarms[currentAlarmIndex].snoozeMinutes` from now
+                currentState = State::RUNNING;
+            }
             break;
     }
 
