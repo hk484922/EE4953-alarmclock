@@ -18,7 +18,7 @@ namespace {
 
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
 
-    uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
+    // uint8_t currentAlarmIndex = 0;  // Index of the currently selected alarm (0, 1, or 2)
 
     a21::EC11 encoder; // Instance of encoder class
 
@@ -36,9 +36,7 @@ namespace {
     ClockTime currentTime {};
     ClockTime tempTime {}; // Used for clocktime menu data
 
-    TimeFormat currentTimeFormat = TimeFormat::HOUR_24; // Default time format
-
-    SystemSettings currentSystemSettings {currentTimeFormat, false, 128}; // Default system settings
+    SystemSettings currentSystemSettings {TimeFormat::HOUR_24, false, 128}; // Default system settings
 
     MenuState currentMenu = MenuState::MAIN_MENU;
 
@@ -178,7 +176,7 @@ void setup() {
 void loop() {
     serviceRtcSynchronization();
     serviceClock();
-    
+
     // Check if any of the alarms are due to ring
    for(int i = 0; i < 3; i++) {
         if (isAlarmDue(alarms[i], currentTime, i)) {
@@ -212,7 +210,7 @@ void loop() {
         case State::STARTUP:
             break;
         case State::RUNNING:
-        //When we enter MENU state, we need to set lastMenuInteractionTime = millis() to reset the menu timeout timer
+
             if(buttonEvent == ButtonEvent::MENU_PRESSED) {
                 menuIndex = 0; // Reset menu index when entering the menu
                 currentMenu = MenuState::MAIN_MENU; // Reset menu state when entering the menu
@@ -250,11 +248,13 @@ void loop() {
                             currentMenu = MenuState::SYSTEM_MENU;
                         }
                     }
+                    // Handle button events to go back, typical for all instances
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }
+                    // Handle button events to exit menu, typical for all instances
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
@@ -281,11 +281,11 @@ void loop() {
                             currentMenu = MenuState::CLOCK_TIME;
                             currentState = State::MENU;  
 
-                         } else if (menuIndex == 1) {
-                                //Date set configuration
-                                menuIndex = 0;
-                                currentMenu = MenuState::CLOCK_DATE;
-                                currentState = State::MENU;  
+                        } else if (menuIndex == 1) {
+                            //Date set configuration
+                            menuIndex = 0;
+                            currentMenu = MenuState::CLOCK_DATE;
+                            currentState = State::MENU;  
 
                         } else if (menuIndex == 2) {
                             // Save time and date Clock configuration
@@ -308,7 +308,6 @@ void loop() {
 
                     break;
                 case MenuState::CLOCK_TIME:
-                    // Handle encoder events to adjust the time
                     // When entering the menu, you will enter the hour setting first, then pressing the encoder button will move you to the minute setting.
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         if(menuIndex == 0) {
@@ -345,7 +344,7 @@ void loop() {
                         if (menuIndex == 0) {
                             menuIndex = 1; // Move to minute setting
                         } else if (menuIndex == 1) {
-                            menuIndex = 0; // Move back to hour setting
+                            menuIndex = 0; // Reset menu index
                             currentMenu = MenuState::CLOCK_MENU; // Return to clock menu after setting time
                     
                         }
@@ -362,7 +361,7 @@ void loop() {
                     }
                     break;
                 case MenuState::CLOCK_DATE:
-                    // Handle encoder events to adjust the date
+                    // Handle encoder events to adjust the date, only valid years are between 2000 and 2099, months between 1 and 12, and days between 1 and the maximum number of days in the selected month.
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         if(menuIndex == 0) {
                             if(tempTime.year < 2099) {
@@ -380,6 +379,7 @@ void loop() {
                             } else {
                                 tempTime.month = 1;
                               }
+                              // Using daysInMonth function to ensure the day is valid for the selected month and year
                               int maxDay = daysInMonth(tempTime.month, tempTime.year);
                               if(tempTime.day > maxDay) {
                                   tempTime.day = maxDay;
@@ -852,10 +852,10 @@ void loop() {
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         if (menuIndex == 0) {
-                            currentTimeFormat = TimeFormat::HOUR_12;
+                            currentSystemSettings.timeFormat = TimeFormat::HOUR_12;
                             menuIndex = 0; // Reset menu index for time format selection
                         } else if (menuIndex == 1) {
-                            currentTimeFormat = TimeFormat::HOUR_24;
+                            currentSystemSettings.timeFormat = TimeFormat::HOUR_24;
                             menuIndex = 0; // Reset menu index for time format selection
                             
                         }
@@ -945,6 +945,7 @@ void loop() {
 
             break;
         case State::ALARM_RINGING:
+        //when alarm is acknowledged or snoozed, need to set the hasAlarmTriggered flag to true for that alarm index, so it doesn't ring again for the day
             break;
     }
 
@@ -1045,10 +1046,11 @@ void serviceRtcSynchronization() {
 }
 
 //Dummy function to test booting
-EncoderEvent readEncoderEvent(){
+/*
+    EncoderEvent readEncoderEvent(){
     return EncoderEvent::NONE; // Placeholder implementation
 }
-
+*/
 /*
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
