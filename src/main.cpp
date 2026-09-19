@@ -149,7 +149,9 @@ bool alarmSoundActive = false; // Flag to indicate if the alarm sound is current
 
 void playAlarmNote() {
     uint16_t freq = alarmTones[currentToneIndex][currentNoteIndex].frequency;
-    if (freq > 0) tone(BUZZER_PIN, freq);
+    if (freq > 0){
+        tone(BUZZER_PIN, freq);
+    } 
     else noTone(BUZZER_PIN);
     toneStartTime = millis();
 }
@@ -206,6 +208,7 @@ void initializeEncoder() {
     pinMode(ENCODER_B_PIN, INPUT_PULLUP);
     pinMode(ENCODER_BUTTON_PIN, INPUT_PULLUP);
 
+    //commented out for now, as it was causing issues due to encoder not being attatched 
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), pinDidChange, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), pinDidChange, CHANGE);
     
@@ -251,6 +254,13 @@ void setup() {
     currentTime = readCurrentTime();
 
     enterState(State::RUNNING);
+
+    //testing alarm melodies remove before final submission
+    /*
+    startAlarmSound(2);
+    currentState = State::ALARM_RINGING;
+    currentAlarmIndex = 0;
+    */
 }
 
 // Run repeatedly while the clock is powered on
@@ -283,8 +293,7 @@ void loop() {
         menuIndex = 0;
         currentState = State::RUNNING;
     }
-    //testing boot
-    //tone(BUZZER_PIN, 1000, 10); // Play a 1kHz tone for 10ms
+    
 
     // Button handling will be added as the Menu and Alarm states are implemented.
     static_cast<void>(buttonEvent);
@@ -1141,11 +1150,11 @@ void serviceRtcSynchronization() {
 }
 
 //Dummy function to test booting
-/*
-    EncoderEvent readEncoderEvent(){
+
+EncoderEvent readEncoderEvent(){
     return EncoderEvent::NONE; // Placeholder implementation
 }
-*/
+
 /*
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
