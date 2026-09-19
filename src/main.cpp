@@ -211,6 +211,7 @@ void loop() {
                         }
                     }
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }
@@ -235,9 +236,16 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                        if (menuIndex == 0) {
                             //Time set configuration
-                              
+                            menuIndex = 0;
+                            currentMenu = MenuState::CLOCK_TIME;
+                            currentState = State::MENU;  
+
                          } else if (menuIndex == 1) {
-                        //Date set configuration
+                                //Date set configuration
+                                menuIndex = 0;
+                                currentMenu = MenuState::CLOCK_DATE;
+                                currentState = State::MENU;  
+
                         } else if (menuIndex == 2) {
                             // Save time and date Clock configuration
                             //NEED TO ADD FUNCTION TO SAVE TIME AND DATE TO RTC & MCU
@@ -247,14 +255,138 @@ void loop() {
                         }
                     }
                         if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                            menuIndex = 0;
                             currentMenu = MenuState::MAIN_MENU;
                             currentState = State::MENU;
                     }
                         if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                            menuIndex = 0;
                             currentMenu = MenuState::MAIN_MENU;
                             currentState = State::RUNNING;
                     }
 
+                    break;
+                case MenuState::CLOCK_TIME:
+                    // Handle encoder events to adjust the time
+                    // When entering the menu, you will enter the hour setting first, then pressing the encoder button will move you to the minute setting.
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempTime.hour < 23) {
+                                tempTime.hour++;
+                            } else {
+                                tempTime.hour = 0;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempTime.minute < 59) {
+                                tempTime.minute++;
+                            } else {
+                                tempTime.minute = 0;
+                              }
+                            }
+                    }    
+                    else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempTime.hour > 0) {
+                                tempTime.hour--;
+                            } else {
+                                tempTime.hour = 23;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempTime.minute > 0) {
+                                tempTime.minute--;
+                            } else {
+                                tempTime.minute = 59;
+                            }
+                        }
+                    }
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        
+                        if (menuIndex == 0) {
+                            menuIndex = 1; // Move to minute setting
+                        } else if (menuIndex == 1) {
+                            menuIndex = 0; // Move back to hour setting
+                            currentMenu = MenuState::CLOCK_MENU; // Return to clock menu after setting time
+                    
+                        }
+                    }
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::CLOCK_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
+                    break;
+                case MenuState::CLOCK_DATE:
+                    // Handle encoder events to adjust the date
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempTime.year < 2099) {
+                                tempTime.year++;
+                            } else {
+                                tempTime.year = 2000;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempTime.month < 12) {
+                                tempTime.month++;
+                            } else {
+                                tempTime.month = 1;
+                              }
+                        } else if(menuIndex == 2) {
+                            if(tempTime.day < 31) {
+                                tempTime.day++;
+                            } else {
+                                tempTime.day = 1;
+                              }
+                        }
+                    }    
+                    else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempTime.year > 2000) {
+                                tempTime.year--;
+                            } else {
+                                tempTime.year = 2099;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempTime.month > 1) {
+                                tempTime.month--;
+                            } else {
+                                tempTime.month = 12;
+                              }
+                            } else if(menuIndex == 2) {
+                                if(tempTime.day > 1) {
+                                tempTime.day--;
+                            }   else {
+                                tempTime.day = 31;
+                              }
+                            }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        
+                        if (menuIndex == 0) {
+                            menuIndex = 1; // Move to month setting
+                        } else if (menuIndex == 1) {
+                            menuIndex = 2; // Move back to day setting
+                        } else if (menuIndex == 2) {
+                            menuIndex = 0; // Move back to year setting
+                            currentMenu = MenuState::CLOCK_MENU; // Return to clock menu after setting date
+                        }
+                    }
+                    
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::CLOCK_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
                     break;
 
                 case MenuState::ALARM_SELECT:
@@ -272,16 +404,18 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         selectedAlarm = menuIndex;
                         tempAlarm = alarms[selectedAlarm];
-                         menuIndex = 0;
+                        menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                        
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::MENU;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }
@@ -303,14 +437,29 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                        if (menuIndex == 0) {
                         //Enabled state configuration
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_ENABLE;
+                        currentState = State::MENU; 
                         } else if (menuIndex == 1) {
                         //Time state configuration
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_TIME;
+                        currentState = State::MENU;
                         } else if (menuIndex == 2) {
                         // Date state configuration
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_DATE;
+                        currentState = State::MENU;
                         } else if (menuIndex == 3) {
-                        // Type state configuration   
+                        // Type state configuration
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_TYPE;
+                        currentState = State::MENU;   
                         } else if (menuIndex == 4) {
-                        //Snooze state configuration                        
+                        //Snooze state configuration
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_SNOOZE;
+                        currentState = State::MENU;                        
                         } else if (menuIndex == 5) {
                             //Saves alarm configurations and loads tempAlarm into selected alarm
                             alarms[selectedAlarm] = tempAlarm;
@@ -321,15 +470,256 @@ void loop() {
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::ALARM_SELECT;
                         currentState = State::MENU;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
                     }                
                     break;
 
+                case MenuState::ALARM_ENABLE:
+                    // Handle encoder events to toggle alarm enabled state
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 1) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 1;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            tempAlarm.enabled = true;
+                        } else if (menuIndex == 1) {
+                            tempAlarm.enabled = false;
+                        }
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }  
+
+
+                    break;
+                case MenuState::ALARM_TYPE:
+                    // Handle encoder events to toggle alarm type (daily or one-time)
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 1) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 1;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            tempAlarm.daily = false;;
+                        } else if (menuIndex == 1) {
+                            tempAlarm.daily = true;;
+                        }
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }  
+                    break;
+
+                case MenuState::ALARM_TIME:
+                    // Handle encoder events to adjust the alarm time
+                    // When entering the menu, you will enter the hour setting first, then pressing the encoder button will move you to the minute setting.
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempAlarm.hour < 23) {
+                                tempAlarm.hour++;
+                            } else {
+                                tempAlarm.hour = 0;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempAlarm.minute < 59) {
+                                tempAlarm.minute++;
+                            } else {
+                                tempAlarm.minute = 0;
+                              }
+                            }
+                    }    
+                    else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempAlarm.hour > 0) {
+                                tempAlarm.hour--;
+                            } else {
+                                tempAlarm.hour = 23;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempAlarm.minute > 0) {
+                                tempAlarm.minute--;
+                            } else {
+                                tempAlarm.minute = 59;
+                              }
+                            }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        
+                        if (menuIndex == 0) {
+                            menuIndex = 1; // Move to minute setting
+                        } else if (menuIndex == 1) {
+                            menuIndex = 0; // Move back to hour setting
+                            currentMenu = MenuState::ALARM_MENU; // Return to alarm menu after setting time
+                    
+                        }
+                    }
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
+
+                    break;
+                case MenuState::ALARM_DATE:
+                    // Handle encoder events to adjust the alarm date
+                    // When entering the menu, you will enter the year setting first, then pressing the encoder button will move you to the month setting, and then to the day setting.
+                      if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempAlarm.year < 2099) {
+                                tempAlarm.year++;
+                            } else {
+                                tempAlarm.year = 2000;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempAlarm.month < 12) {
+                                tempAlarm.month++;
+                            } else {
+                                tempAlarm.month = 1;
+                              }
+                        } else if(menuIndex == 2) {
+                            if(tempAlarm.day < 31) {
+                                tempAlarm.day++;
+                            } else {
+                                tempAlarm.day = 1;
+                              }
+                        }
+                    }    
+                    else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        if(menuIndex == 0) {
+                            if(tempAlarm.year > 2000) {
+                                tempAlarm.year--;
+                            } else {
+                                tempAlarm.year = 2099;
+                            }
+                        } else if(menuIndex == 1) {
+                            if(tempAlarm.month > 1) {
+                                tempAlarm.month--;
+                            } else {
+                                tempAlarm.month = 12;
+                              }
+                            } else if(menuIndex == 2) {
+                                if(tempAlarm.day > 1) {
+                                tempAlarm.day--;
+                            }   else {
+                                tempAlarm.day = 31;
+                              }
+                            }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        
+                        if (menuIndex == 0) {
+                            menuIndex = 1; // Move to month setting
+                        } else if (menuIndex == 1) {
+                            menuIndex = 2; // Move back to day setting
+                        } else if (menuIndex == 2) {
+                            menuIndex = 0; // Move back to year setting
+                            currentMenu = MenuState::ALARM_MENU; // Return to alarm menu after setting date
+                        }
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    }
+
+                    break;
+
+                case MenuState::ALARM_SNOOZE:
+                    // Handle encoder events to adjust the snooze duration
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        if(menuIndex > 3) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        if(menuIndex < 0) {
+                            menuIndex = 3;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        if (menuIndex == 0) {
+                            tempAlarm.snoozeMinutes = 15;
+                        } else if (menuIndex == 1) {
+                            tempAlarm.snoozeMinutes = 30;
+                        } else if (menuIndex == 2) {
+                            tempAlarm.snoozeMinutes = 60;
+                        } else if (menuIndex == 3) {
+                            tempAlarm.snoozeMinutes = 0; // This zero corelates to the "indefinite snooze" option
+                        }
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        currentState = State::MENU;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                    } 
+                    break; 
             }
 
             break;

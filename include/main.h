@@ -39,14 +39,16 @@ enum class TimeFormat {
 enum class MenuState {
     MAIN_MENU, //  First menu screen, shows options for clocktime or alarm
     CLOCK_MENU, // Jumps to clocktime setting screen
+    CLOCK_TIME, // Jumps to clocktime time setting screen
+    CLOCK_DATE, // Jumps to clocktime date setting screen
     ALARM_SELECT, // Second menu screen, shows options for alarm 1, 2, or 3
-    ALARM_MENU // Jumps to alarm setting screen
-};
+    ALARM_MENU, // Jumps to alarm setting screen
+    ALARM_ENABLE, // Jumps to alarm enabled setting screen
+    ALARM_TYPE, // Jumps to alarm type setting screen
+    ALARM_TIME, // Jumps to alarm time setting screen
+    ALARM_DATE, // Jumps to alarm date setting screen
+    ALARM_SNOOZE // Jumps to alarm snooze setting screen
 
-// Main menu shows options for clocktime or alarm
-enum class MainMenu {
-    CLOCK_MENU,
-    ALARM_SELECT 
 };
 
 // Alarm menu selection
@@ -54,14 +56,6 @@ enum class AlarmSelection {
     ALARM_1,
     ALARM_2,
     ALARM_3
-};
-// Alarm items show the configurable alarm settings
-enum class AlarmMenu {
-    ENABLED, // Is the alarm enabled
-    ALARM_TYPE, // Is it a daily-repeated alarm or one-time alarm?
-    TIME, // Time for alarm to sound
-    DATE, // Date for one-time alarms, will not be relevent for repeated alarms
-    SNOOZE_TIME // How long will alarm snooze for?
 };
 
 
