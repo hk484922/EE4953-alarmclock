@@ -8,9 +8,12 @@
 #include <esp_timer.h>
 #include <cstdio>
 #include "main.h"
-
+//currently have a bunch of test code in here 
 namespace {
     State currentState = State::STARTUP;  // The current clock mode
+
+    State previousState = State::STARTUP; // The previous clock mode, used for testing
+
 
     //Alarm data for 3 alarms and a temporary alarm objects
     AlarmConfig alarms[3];
@@ -19,6 +22,8 @@ namespace {
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
 
     uint8_t currentAlarmIndex = 0;  // Index of the currently active alarm (0, 1, or 2)
+
+    uint8_t previousMenuIndex = 0; // Track the previous menu index for testing
 
     a21::EC11 encoder; // Instance of encoder class
 
@@ -39,6 +44,8 @@ namespace {
     SystemSettings currentSystemSettings {TimeFormat::HOUR_24, false, 128}; // Default system settings
 
     MenuState currentMenu = MenuState::MAIN_MENU;
+    
+    MenuState previousMenu = MenuState::MAIN_MENU; // Track the previous menu state for testing
 
     int menuIndex = 0;
     int selectedAlarm = 0;
@@ -52,12 +59,13 @@ namespace {
     constexpr uint8_t ENCODER_A_PIN = 2;
     constexpr uint8_t ENCODER_B_PIN = 4;
     constexpr uint8_t ENCODER_BUTTON_PIN = 5;
-    constexpr uint8_t BUZZER_PIN = 11;
+    constexpr uint8_t BUZZER_PIN = 6;
     constexpr uint8_t LIGHT_SENSOR_PIN = 7;
-    constexpr uint8_t SNOOZE_BUTTON_PIN = 15;
-    constexpr uint8_t STOP_BUTTON_PIN = 16;
-    constexpr uint8_t MENU_BUTTON_PIN = 17;
-    constexpr uint8_t BACK_BUTTON_PIN = 18;
+    constexpr uint8_t SNOOZE_BUTTON_PIN = 38;
+    constexpr uint8_t STOP_BUTTON_PIN = 39;
+    constexpr uint8_t MENU_BUTTON_PIN = 40;
+    constexpr uint8_t BACK_BUTTON_PIN = 41;
+
     constexpr uint32_t DEBOUNCE_MS = 25;
 
     struct DebouncedButton {
@@ -124,14 +132,21 @@ Note alarmTone2[] = {
 };
 
 Note alarmTone3[] = {
-    { 440, 250 }, // A4
-    { 494, 250 }, // B4
-    { 523, 250 }, // C5
-    { 587, 250 }, // D5
-    { 659, 250 }, // E5
-    { 698, 250 }, // F5
-    { 784, 250 }, // G5
-    { 880, 250 }, // A5
+    { 659, 400 }, // E5
+    { 659, 400 }, // E5
+    { 698, 400 }, // F5
+    { 784, 400 }, // G5
+    { 784, 400 }, // G5
+    { 698, 400 }, // F5
+    { 659, 400 }, // E5
+    { 587, 400 }, // D5
+    { 523, 400 }, // C5
+    { 523, 400 }, // C5
+    { 587, 400 }, // D5
+    { 659, 400 }, // E5
+    { 659, 600 }, // E5 (held slightly longer)
+    { 587, 200 }, // D5
+    { 587, 800 }, // D5 (held)
 };
 
 Note* alarmTones[] = {alarmTone1, alarmTone2, alarmTone3};
@@ -255,12 +270,13 @@ void setup() {
 
     enterState(State::RUNNING);
 
+    Serial.begin(9600);
     //testing alarm melodies remove before final submission
-    /*
-    startAlarmSound(2);
-    currentState = State::ALARM_RINGING;
-    currentAlarmIndex = 0;
-    */
+    
+    // startAlarmSound(2);
+    // currentState = State::ALARM_RINGING;
+    // currentAlarmIndex = 0;
+    
 }
 
 // Run repeatedly while the clock is powered on
@@ -284,6 +300,56 @@ void loop() {
     // Poll inputs
     EncoderEvent encoderEvent = readEncoderEvent();
     ButtonEvent buttonEvent = readButtonEvent();
+
+    //testing
+    if(currentState !=previousState) {
+       switch(currentState) {
+            case State::STARTUP:
+                Serial.println("Entered STARTUP state");
+                break;
+            case State::RUNNING:
+                Serial.println("Entered RUNNING state");
+                break;
+            case State::MENU:
+                Serial.println("Entered MENU state");
+                break;
+            case State::ALARM_RINGING:
+                Serial.println("Entered ALARM_RINGING state");
+                break;
+        }
+        previousState = currentState; // Update previous state after handling the change
+    }
+
+    switch(encoderEvent) {
+        case EncoderEvent::CLOCKWISE:
+            Serial.println("Encoder turned clockwise");
+            break;
+        case EncoderEvent::COUNTER_CLOCKWISE:
+            Serial.println("Encoder turned counter-clockwise");
+            break;
+        case EncoderEvent::PRESSED:
+            Serial.println("Encoder button pressed");
+            break;
+        default:
+            break;
+    }
+
+    switch(buttonEvent) {
+        case ButtonEvent::SNOOZE_PRESSED:
+            Serial.println("Snooze button pressed");
+            break;
+        case ButtonEvent::STOP_PRESSED:
+            Serial.println("Stop button pressed");
+            break;
+        case ButtonEvent::MENU_PRESSED:
+            Serial.println("Menu button pressed");
+            break;
+        case ButtonEvent::BACK_PRESSED:
+            Serial.println("Back button pressed");
+            break;
+        default:
+            break;
+    }
 
     if(encoderEvent != EncoderEvent::NONE || buttonEvent != ButtonEvent::NONE) {
         lastMenuInteractionTime = millis(); // Reset the menu timeout timer on any interaction
@@ -1052,7 +1118,64 @@ void loop() {
             }
             break;
     }
+    
 
+    if(menuIndex != previousMenuIndex) {
+        Serial.print("Menu Index: ");
+        Serial.println(menuIndex);
+    }
+    if(currentMenu != previousMenu) {
+        Serial.print("Current Menu: ");
+        switch(currentMenu) {
+            case MenuState::MAIN_MENU:
+                Serial.println("Main Menu");
+                break;
+            case MenuState::CLOCK_MENU:
+                Serial.println("Clock Menu");
+                break;
+            case MenuState::CLOCK_TIME:
+                Serial.println("Clock Time");
+                break;
+            case MenuState::CLOCK_DATE:
+                Serial.println("Clock Date");
+                break;
+            case MenuState::ALARM_SELECT:
+                Serial.println("Alarm Select");
+                break;
+            case MenuState::ALARM_MENU:
+                Serial.println("Alarm Menu");
+                break;
+            case MenuState::ALARM_ENABLE:
+                Serial.println("Alarm Enable");
+                break;
+            case MenuState::ALARM_TIME:
+                Serial.println("Alarm Time");
+                break;
+            case MenuState::ALARM_DATE:
+                Serial.println("Alarm Date");
+                break;
+            case MenuState::ALARM_TYPE:
+                Serial.println("Alarm Type");
+                break;
+            case MenuState::ALARM_SNOOZE:
+                Serial.println("Alarm Snooze");
+                break;
+            case MenuState::SYSTEM_MENU:
+                Serial.println("System Menu");
+                break;
+            case MenuState::TIME_FORMAT:
+                Serial.println("Time Format");
+                break;
+            case MenuState::MANUAL_BRIGHTNESS:
+                Serial.println("Manual Brightness");
+                break;
+            case MenuState::BRIGHTNESS_LEVEL:
+                Serial.println("Brightness Level");
+                break;
+        }
+    }
+    previousMenu = currentMenu;
+    previousMenuIndex = menuIndex;
     updateCurrentState();
     updateDisplay();
     updateBrightness();
@@ -1151,11 +1274,11 @@ void serviceRtcSynchronization() {
 
 //Dummy function to test booting
 
-EncoderEvent readEncoderEvent(){
-    return EncoderEvent::NONE; // Placeholder implementation
-}
+// EncoderEvent readEncoderEvent(){
+//     return EncoderEvent::NONE; // Placeholder implementation
+// }
 
-/*
+
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
         return EncoderEvent::PRESSED;
@@ -1192,7 +1315,7 @@ EncoderEvent readEncoderEvent() {
 
     return EncoderEvent::NONE;
 }
-*/
+
 
 ButtonEvent readButtonEvent() {
     // Stop has highest priority when more than one button is pressed.
