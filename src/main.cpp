@@ -1507,7 +1507,7 @@ void updateDisplay() {
                 break;
             }
              case MenuState::ALARM_SELECT: {
-                ssd1306_printFixed(0, 0, "Select Alarm to Edit", STYLE_NORMAL); 
+                ssd1306_printFixed(0, 0, "Select Alarm", STYLE_NORMAL); 
                 if (menuIndex == 0) {
                     ssd1306_printFixed(0, 16, "> Alarm 1", STYLE_NORMAL);
                     ssd1306_printFixed(0, 32, "  Alarm 2", STYLE_NORMAL);
@@ -1562,12 +1562,12 @@ void updateDisplay() {
             case MenuState::ALARM_ENABLE: {
                 ssd1306_printFixed(0, 0, "Alarm Enable", STYLE_NORMAL);
                 if (menuIndex == 0) {
-                    ssd1306_printFixed(0, 16, "> Alarm is Disabled", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm is Enabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 16, "> Alarm Disabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Enabled", STYLE_NORMAL);
                 }
                 else if (menuIndex == 1) {
-                    ssd1306_printFixed(0, 16, "  Alarm is Disabled", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "> Alarm is Enabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 16, "  Alarm Disabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Alarm Enabled", STYLE_NORMAL);
                 }
                 break;
             }
@@ -1617,14 +1617,45 @@ void updateDisplay() {
             }
             case MenuState::SYSTEM_MENU: {
                 ssd1306_printFixed(0, 0, "System Settings", STYLE_NORMAL);
+                 if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Time Format", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Brightness Control", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Brightness Level", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Time Format", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Brightness Control", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Brightness Level", STYLE_NORMAL);
+                }
+                else if (menuIndex == 2) {
+                    ssd1306_printFixed(0, 16, "  Time Format", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Brightness Control", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Brightness Level", STYLE_NORMAL);
+                }
                 break;
             }
             case MenuState::TIME_FORMAT: {
                 ssd1306_printFixed(0, 0, "Time Format", STYLE_NORMAL);
+                 if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> 12 Hour", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  24 Hour", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  12 Hour", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> 24 Hour", STYLE_NORMAL);
+                }
                 break;
             }
             case MenuState::MANUAL_BRIGHTNESS: {
                 ssd1306_printFixed(0, 0, "Brightness Control", STYLE_NORMAL);
+                    if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Automatic", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Manual", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Automatic", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Manual", STYLE_NORMAL);
+                }
                 break;
             }
             case MenuState::BRIGHTNESS_LEVEL: {
