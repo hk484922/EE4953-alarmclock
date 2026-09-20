@@ -1381,6 +1381,7 @@ void updateDisplay() {
     "%01u",
     static_cast<unsigned>(currentMenu)
     );
+        //ssd1306_clearScreen();
         ssd1306_printFixed(0, 0, menuText, STYLE_NORMAL);
         break;
         
@@ -1413,6 +1414,12 @@ void updateDisplay() {
 
 void updateBrightness() {
     // Brightness calibration and manual override behavior remain to be defined.
+    if(currentSystemSettings.manualBrightness) {
+        ssd1306_setContrast(currentSystemSettings.brightnessLevel);
+    } else {
+        // Automatic brightness control logic to be implemented.
+        ssd1306_setContrast(255);
+    }
 }
 //This function returns the number of days in a given month, accounting for leap years.
 int daysInMonth(uint8_t month, uint16_t year) {
