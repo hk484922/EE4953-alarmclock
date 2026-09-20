@@ -1345,8 +1345,10 @@ void updateDisplay() {
     }
 
     lastDisplayMs = nowMs;
+    switch (currentState){
 
-    char timeText[9];
+        case State::RUNNING:
+        char timeText[9];
     snprintf(
         timeText,
         sizeof(timeText),
@@ -1368,6 +1370,45 @@ void updateDisplay() {
 
     ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
     ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+
+        break;
+
+    case State::MENU:
+    char menuText[20];
+    snprintf(
+    menuText,
+    sizeof(menuText),
+    "%01u",
+    static_cast<unsigned>(currentMenu)
+    );
+        ssd1306_printFixed(0, 0, menuText, STYLE_NORMAL);
+        break;
+        
+    }
+
+    /*char timeText[9];
+    snprintf(
+        timeText,
+        sizeof(timeText),
+        "%02u:%02u:%02u",
+        static_cast<unsigned>(currentTime.hour),
+        static_cast<unsigned>(currentTime.minute),
+        static_cast<unsigned>(currentTime.second)
+    );
+
+    char dateText[11];
+    snprintf(
+        dateText,
+        sizeof(dateText),
+        "%02u/%02u/%04u",
+        static_cast<unsigned>(currentTime.month),
+        static_cast<unsigned>(currentTime.day),
+        static_cast<unsigned>(currentTime.year)
+    );
+
+    ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+    ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+*/
 }
 
 void updateBrightness() {
