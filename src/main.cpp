@@ -21,6 +21,8 @@ namespace {
 
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
 
+    bool displayNeedsUpdating = true; // This will determine when clear screen function is needed
+
     uint8_t currentAlarmIndex = 0;  // Index of the currently active alarm (0, 1, or 2)
 
     uint8_t previousMenuIndex = 0; // Track the previous menu index for testing
@@ -291,6 +293,7 @@ void loop() {
                 menuIndex = 0; // Reset menu index when alarm rings
                 currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
                 currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
+                displayNeedsUpdating = true; // Call for screen to be updated
                 currentAlarmIndex = i; // Set the current alarm index to the alarm that is ringing
                 startAlarmSound(alarms[i].tone);
                 break;
@@ -374,6 +377,7 @@ void loop() {
                 currentMenu = MenuState::MAIN_MENU; // Reset menu state when entering the menu
                 lastMenuInteractionTime = millis(); // Reset the menu timeout timer on entering the menu
                 currentState = State::MENU;
+                displayNeedsUpdating = true;
             }
             break;
         case State::MENU:
@@ -384,16 +388,19 @@ void loop() {
                 // Handle encoder events to navigate the main menu
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 2;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             tempTime = currentTime; // Load current time into tempTime for editing
                             currentMenu = MenuState::CLOCK_MENU;
@@ -411,29 +418,34 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
                     // Handle button events to exit menu, typical for all instances
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
                     break;
 
                 case MenuState::CLOCK_MENU:
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 2;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                       if (menuIndex == 0) {
+                        displayNeedsUpdating = true;
+                        if (menuIndex == 0) {
                             //Time set configuration
                             menuIndex = 0;
                             currentMenu = MenuState::CLOCK_TIME;
@@ -457,17 +469,20 @@ void loop() {
                             menuIndex = 0;
                             currentMenu = MenuState::MAIN_MENU;
                             currentState = State::MENU;
+                            displayNeedsUpdating = true;
                     }
                         if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                             menuIndex = 0;
                             currentMenu = MenuState::MAIN_MENU;
                             currentState = State::RUNNING;
+                            displayNeedsUpdating = true;
                     }
 
                     break;
                 case MenuState::CLOCK_TIME:
                     // When entering the menu, you will enter the hour setting first, then pressing the encoder button will move you to the minute setting.
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempTime.hour < 23) {
                                 tempTime.hour++;
@@ -483,6 +498,7 @@ void loop() {
                             }
                     }    
                     else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempTime.hour > 0) {
                                 tempTime.hour--;
@@ -498,7 +514,7 @@ void loop() {
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             menuIndex = 1; // Move to minute setting
                         } else if (menuIndex == 1) {
@@ -511,16 +527,19 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::CLOCK_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
                     break;
                 case MenuState::CLOCK_DATE:
                     // Handle encoder events to adjust the date, only valid years are between 2000 and 2099, months between 1 and 12, and days between 1 and the maximum number of days in the selected month.
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempTime.year < 2099) {
                                 tempTime.year++;
@@ -552,6 +571,7 @@ void loop() {
                         }
                     }    
                     else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempTime.year > 2000) {
                                 tempTime.year--;
@@ -583,7 +603,7 @@ void loop() {
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             menuIndex = 1; // Move to month setting
                         } else if (menuIndex == 1) {
@@ -598,22 +618,26 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::CLOCK_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
                     break;
 
                 case MenuState::ALARM_SELECT:
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 2;
                         }
@@ -623,6 +647,7 @@ void loop() {
                         tempAlarm = alarms[selectedAlarm];
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
                        
                     }
 
@@ -630,11 +655,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
 
                     break;
@@ -642,17 +669,20 @@ void loop() {
                 case MenuState::ALARM_MENU:
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 5) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 5;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                       if (menuIndex == 0) {
+                        displayNeedsUpdating = true;
+                        if (menuIndex == 0) {
                         //Enabled state configuration
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_ENABLE;
@@ -690,11 +720,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_SELECT;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }                
                     break;
 
@@ -702,17 +734,20 @@ void loop() {
                     // Handle encoder events to toggle alarm enabled state
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 1) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 1;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             tempAlarm.enabled = true;
                         } else if (menuIndex == 1) {
@@ -726,11 +761,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }  
 
 
@@ -739,17 +776,20 @@ void loop() {
                     // Handle encoder events to toggle alarm type (daily or one-time)
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 1) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 1;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             tempAlarm.daily = false;
                         } else if (menuIndex == 1) {
@@ -763,11 +803,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }  
                     break;
 
@@ -775,6 +817,7 @@ void loop() {
                     // Handle encoder events to adjust the alarm time
                     // When entering the menu, you will enter the hour setting first, then pressing the encoder button will move you to the minute setting.
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempAlarm.hour < 23) {
                                 tempAlarm.hour++;
@@ -790,6 +833,7 @@ void loop() {
                             }
                     }    
                     else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempAlarm.hour > 0) {
                                 tempAlarm.hour--;
@@ -806,7 +850,7 @@ void loop() {
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             menuIndex = 1; // Move to minute setting
                         } else if (menuIndex == 1) {
@@ -819,11 +863,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
 
                     break;
@@ -831,6 +877,7 @@ void loop() {
                     // Handle encoder events to adjust the alarm date
                     // When entering the menu, you will enter the year setting first, then pressing the encoder button will move you to the month setting, and then to the day setting.
                       if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempAlarm.year < 2099) {
                                 tempAlarm.year++;
@@ -862,6 +909,7 @@ void loop() {
                         }
                     }    
                     else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        displayNeedsUpdating = true;
                         if(menuIndex == 0) {
                             if(tempAlarm.year > 2000) {
                                 tempAlarm.year--;
@@ -893,7 +941,7 @@ void loop() {
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             menuIndex = 1; // Move to month setting
                         } else if (menuIndex == 1) {
@@ -908,11 +956,13 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     }
 
                     break;
@@ -921,17 +971,20 @@ void loop() {
                     // Handle encoder events to adjust the snooze duration
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 3) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 3;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             tempAlarm.snoozeMinutes = 15;
                         } else if (menuIndex == 1) {
@@ -949,28 +1002,33 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     } 
                     break;
                 case MenuState::SYSTEM_MENU:
                     // Handle encoder events to navigate the system menu
                      if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 2;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             menuIndex = 0; // Reset menu index for time format selection
                             currentMenu = MenuState::TIME_FORMAT;
@@ -987,28 +1045,33 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     } 
                     break;
                 case MenuState::TIME_FORMAT:
                     // Handle encoder events to toggle time format (12-hour or 24-hour)
                       if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 1) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 1;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             currentSystemSettings.timeFormat = TimeFormat::HOUR_12;
                             menuIndex = 0; // Reset menu index for time format selection
@@ -1024,28 +1087,33 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     } 
                     break;
                 case MenuState::MANUAL_BRIGHTNESS:
                     // Handle encoder events to adjust manual brightness level
                      if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 1) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 1;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
+                        displayNeedsUpdating = true;
                         if (menuIndex == 0) {
                             currentSystemSettings.manualBrightness = false; // Manual brightness disabled, automatic brightness enabled
                             menuIndex = 0; // Reset menu index for time format selection
@@ -1061,22 +1129,26 @@ void loop() {
                         menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     } 
                     break;
                 case MenuState::BRIGHTNESS_LEVEL:
                     // Handle encoder events to adjust brightness level
                      if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex+=5;
+                        displayNeedsUpdating = true;
                         if(menuIndex > 255) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex-=5;
+                        displayNeedsUpdating = true;
                         if(menuIndex < 0) {
                             menuIndex = 255;
                         }
@@ -1086,17 +1158,20 @@ void loop() {
                         currentSystemSettings.brightnessLevel = menuIndex; // Set the brightness level based on the menu index
                         menuIndex = 0; // Reset menu index for time format selection
                         currentMenu = MenuState::SYSTEM_MENU;
+                        displayNeedsUpdating = true;
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
                         currentState = State::MENU;
+                        displayNeedsUpdating = true;
                     }
                     if (buttonEvent == ButtonEvent::MENU_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::MAIN_MENU;
                         currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
                     } 
                     break;
             }
@@ -1345,47 +1420,225 @@ void updateDisplay() {
     }
 
     lastDisplayMs = nowMs;
+
+    if(!displayNeedsUpdating && currentState != State::RUNNING){
+        return;
+    }
+
+    displayNeedsUpdating = false;
+
+    ssd1306_clearScreen();
+
     switch (currentState){
 
-        case State::RUNNING:
-        char timeText[9];
-    snprintf(
-        timeText,
-        sizeof(timeText),
-        "%02u:%02u:%02u",
-        static_cast<unsigned>(currentTime.hour),
-        static_cast<unsigned>(currentTime.minute),
-        static_cast<unsigned>(currentTime.second)
-    );
-
-    char dateText[11];
-    snprintf(
-        dateText,
-        sizeof(dateText),
-        "%02u/%02u/%04u",
-        static_cast<unsigned>(currentTime.month),
-        static_cast<unsigned>(currentTime.day),
-        static_cast<unsigned>(currentTime.year)
-    );
-
-    ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
-    ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
-
-        break;
-
-    case State::MENU:
-    char menuText[20];
-    snprintf(
-    menuText,
-    sizeof(menuText),
-    "%01u",
-    static_cast<unsigned>(currentMenu)
-    );
-        //ssd1306_clearScreen();
-        ssd1306_printFixed(0, 0, menuText, STYLE_NORMAL);
-        break;
+        case State::RUNNING: {
         
+            char timeText[9];
+            snprintf(
+             timeText,
+             sizeof(timeText),
+             "%02u:%02u:%02u",
+             static_cast<unsigned>(currentTime.hour),
+              static_cast<unsigned>(currentTime.minute),
+              static_cast<unsigned>(currentTime.second)
+        );
+
+             char dateText[11];
+             snprintf( 
+             dateText,
+             sizeof(dateText),
+             "%02u/%02u/%04u",
+             static_cast<unsigned>(currentTime.month),
+             static_cast<unsigned>(currentTime.day),
+             static_cast<unsigned>(currentTime.year)
+         );
+
+            ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+            ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+            break;
+        }
+
+    case State::MENU: {
+        switch(currentMenu){
+            case MenuState::MAIN_MENU: {
+                ssd1306_printFixed(0, 0, "Main Menu", STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Clock", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Alarms", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> System", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::CLOCK_MENU: {
+                ssd1306_printFixed(0, 0, "Clock Menu", STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Clock Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Clock Date", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Save", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Clock Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Clock Date", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Save", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(0, 16, "  Clock Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Clock Date", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Save", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::CLOCK_TIME: {
+                ssd1306_printFixed(0, 0, "Set Time", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::CLOCK_DATE: {
+                ssd1306_printFixed(0, 0, "Set Date", STYLE_NORMAL);
+                break;
+            }
+             case MenuState::ALARM_SELECT: {
+                ssd1306_printFixed(0, 0, "Select Alarm to Edit", STYLE_NORMAL); 
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Alarm 1", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm 2", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Alarm 3", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Alarm 1", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Alarm 2", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Alarm 3", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(0, 16, "  Alarm 1", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm 2", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Alarm 3", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::ALARM_MENU: {
+                ssd1306_printFixed(0, 0, "Alarm Menu", STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Alarm Enable", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Alarm Type", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Alarm Enable", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Alarm Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  Alarm Type", STYLE_NORMAL);
+                }
+                else if (menuIndex == 2) {
+                    ssd1306_printFixed(0, 16, "  Alarm Enable", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Alarm Type", STYLE_NORMAL);
+                }
+                else if (menuIndex == 3) {
+                    ssd1306_printFixed(0, 16, "  Alarm Time", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Type", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Alarm Date", STYLE_NORMAL);
+                }
+                else if (menuIndex == 4) {
+                    ssd1306_printFixed(0, 16, "  Alarm Type", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Date", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Alarm Snooze", STYLE_NORMAL);
+                }
+                else if (menuIndex == 5) {
+                    ssd1306_printFixed(0, 16, "  Alarm Date", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm Snooze", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> Save Alarm", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::ALARM_ENABLE: {
+                ssd1306_printFixed(0, 0, "Alarm Enable", STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> Alarm is Disabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Alarm is Enabled", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  Alarm is Disabled", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Alarm is Enabled", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::ALARM_TYPE: {
+                ssd1306_printFixed(0, 0, "Alarm Type", STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> One-Time-Alarm", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  Daily Alarm", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  One-Time-Alarm", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> Daily Alarm", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::ALARM_TIME: {
+                ssd1306_printFixed(0, 0, "Alarm Time", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::ALARM_DATE: {
+                ssd1306_printFixed(0, 0, "Alarm Date", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::ALARM_SNOOZE: {
+                ssd1306_printFixed(0, 0, "Alarm Snooze", STYLE_NORMAL);
+                 if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 16, "> 15 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  30 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  60 Minutes", STYLE_NORMAL);
+                }
+                else if (menuIndex == 1) {
+                    ssd1306_printFixed(0, 16, "  15 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "> 30 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "  60 Minutes", STYLE_NORMAL);
+                }
+                else if (menuIndex == 2) {
+                    ssd1306_printFixed(0, 16, "  15 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  30 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> 60 Minutes", STYLE_NORMAL);
+                }
+                else if (menuIndex == 3) {
+                    ssd1306_printFixed(0, 16, "  30 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 32, "  60 Minutes", STYLE_NORMAL);
+                    ssd1306_printFixed(0, 48, "> No snooze", STYLE_NORMAL);
+                }
+                break;
+            }
+            case MenuState::SYSTEM_MENU: {
+                ssd1306_printFixed(0, 0, "System Settings", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::TIME_FORMAT: {
+                ssd1306_printFixed(0, 0, "Time Format", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::MANUAL_BRIGHTNESS: {
+                ssd1306_printFixed(0, 0, "Brightness Control", STYLE_NORMAL);
+                break;
+            }
+            case MenuState::BRIGHTNESS_LEVEL: {
+                ssd1306_printFixed(0, 0, "Alarm Brightness Level", STYLE_NORMAL);
+                break;
+            }
+        }
+        break;
     }
+    case State::ALARM_RINGING: {
+        break;
+    }       
+    }
+
 
     /*char timeText[9];
     snprintf(
