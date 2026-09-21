@@ -1598,12 +1598,23 @@ void updateDisplay() {
             displayNeedsUpdating = false;
         }
 
-        char timeText[9];
-        snprintf(timeText, sizeof(timeText), "%02u:%02u:%02u",
-            static_cast<unsigned>(currentTime.hour),
-            static_cast<unsigned>(currentTime.minute),
-            static_cast<unsigned>(currentTime.second));
-
+        char timeText[12];
+        if(currentSystemSettings.timeFormat == TimeFormat::HOUR_12) {
+            uint8_t displayHour = currentTime.hour % 12;
+            if (displayHour == 0) {
+                displayHour = 12; // Handle midnight and noon
+            }
+            snprintf(timeText, sizeof(timeText), "%02u:%02u:%02u %s",
+                static_cast<unsigned>(displayHour),
+                static_cast<unsigned>(currentTime.minute),
+                static_cast<unsigned>(currentTime.second),
+                (currentTime.hour >= 12) ? "PM" : "AM");
+        } else {
+            snprintf(timeText, sizeof(timeText), "%02u:%02u:%02u",
+                static_cast<unsigned>(currentTime.hour),
+                static_cast<unsigned>(currentTime.minute),
+                static_cast<unsigned>(currentTime.second));
+        }
         char dateText[11];
         snprintf(dateText, sizeof(dateText), "%02u/%02u/%04u",
             static_cast<unsigned>(currentTime.month),
