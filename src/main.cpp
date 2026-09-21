@@ -1500,10 +1500,48 @@ void updateDisplay() {
             }
             case MenuState::CLOCK_TIME: {
                 ssd1306_printFixed(0, 0, "Set Time", STYLE_NORMAL);
+
+                char timeText[6];
+                snprintf(
+                    timeText,
+                    sizeof(timeText),
+                    "%02u:%02u",
+                    static_cast<unsigned>(tempTime.hour),
+                    static_cast<unsigned>(tempTime.minute)
+                );
+
+                ssd1306_printFixed(0, 16, timeText, STYLE_NORMAL);
+                if (menuIndex ==0) {
+                    ssd1306_printFixed(0, 32, "^", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(18, 32, "^", STYLE_NORMAL);
+                }
                 break;
             }
             case MenuState::CLOCK_DATE: {
-                ssd1306_printFixed(0, 0, "Set Date", STYLE_NORMAL);
+                ssd1306_printFixed(0, 0, "Set Date Y/M/D", STYLE_NORMAL);
+                
+                char dateText[11];
+                snprintf(
+                    dateText,
+                    sizeof(dateText),
+                    "%04u/%02u/%02u",
+                    static_cast<unsigned>(tempTime.year),
+                    static_cast<unsigned>(tempTime.month),
+                    static_cast<unsigned>(tempTime.day)
+                );
+
+                ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 32, "^", STYLE_NORMAL);
+                }
+                else if(menuIndex == 1) {
+                    ssd1306_printFixed(30, 32, "^", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(48, 32, "^", STYLE_NORMAL);
+            }
                 break;
             }
              case MenuState::ALARM_SELECT: {
@@ -1585,10 +1623,48 @@ void updateDisplay() {
             }
             case MenuState::ALARM_TIME: {
                 ssd1306_printFixed(0, 0, "Alarm Time", STYLE_NORMAL);
+
+                char timeText[6];
+                snprintf(
+                    timeText,
+                    sizeof(timeText),
+                    "%02u:%02u",
+                    static_cast<unsigned>(tempAlarm.hour),
+                    static_cast<unsigned>(tempAlarm.minute)
+                );
+
+                ssd1306_printFixed(0, 16, timeText, STYLE_NORMAL);
+                if (menuIndex ==0) {
+                    ssd1306_printFixed(0, 32, "^", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(18, 32, "^", STYLE_NORMAL);
+                }
                 break;
             }
             case MenuState::ALARM_DATE: {
                 ssd1306_printFixed(0, 0, "Alarm Date", STYLE_NORMAL);
+                   
+                char dateText[11];
+                snprintf(
+                    dateText,
+                    sizeof(dateText),
+                    "%04u/%02u/%02u",
+                    static_cast<unsigned>(tempAlarm.year),
+                    static_cast<unsigned>(tempAlarm.month),
+                    static_cast<unsigned>(tempAlarm.day)
+                );
+
+                ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+                if (menuIndex == 0) {
+                    ssd1306_printFixed(0, 32, "^", STYLE_NORMAL);
+                }
+                else if(menuIndex == 1) {
+                    ssd1306_printFixed(30, 32, "^", STYLE_NORMAL);
+                }
+                else {
+                    ssd1306_printFixed(48, 32, "^", STYLE_NORMAL);
+            }
                 break;
             }
             case MenuState::ALARM_SNOOZE: {
@@ -1659,7 +1735,18 @@ void updateDisplay() {
                 break;
             }
             case MenuState::BRIGHTNESS_LEVEL: {
-                ssd1306_printFixed(0, 0, "Alarm Brightness Level", STYLE_NORMAL);
+                ssd1306_printFixed(0, 0, "Brightness Level", STYLE_NORMAL);
+                ssd1306_printFixed(0, 16, "Set between 0-255", STYLE_NORMAL);
+                   
+                char brightnessText[4];
+                snprintf(
+                    brightnessText,
+                    sizeof(brightnessText),
+                    "%u",
+                    static_cast<unsigned>(currentSystemSettings.brightnessLevel)
+                );
+
+                ssd1306_printFixed(0, 32, brightnessText, STYLE_NORMAL);
                 break;
             }
         }
