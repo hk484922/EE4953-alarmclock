@@ -14,6 +14,10 @@ namespace {
 
     State previousState = State::STARTUP; // The previous clock mode, used for testing
 
+    Preferences alarm1Prefs; // Preferences for Alarm 1
+    Preferences alarm2Prefs; // Preferences for Alarm 2
+    Preferences alarm3Prefs; // Preferences for Alarm 3
+    Preferences systemPrefs; // Preferences for System Settings
 
     //Alarm data for 3 alarms and a temporary alarm objects
     AlarmConfig alarms[3];
