@@ -35,6 +35,27 @@ enum class TimeFormat {
     HOUR_24
 };
 
+// Audible pattern selected for an alarm.
+enum class AlarmTone : uint8_t {
+    TONE_1 = 0,
+    TONE_2,
+    TONE_3
+};
+
+// Maximum time an unattended alarm is allowed to sound.
+enum class AlarmDuration : uint8_t {
+    MINUTES_15 = 0,
+    MINUTES_30,
+    MINUTES_60,
+    INDEFINITE
+};
+
+constexpr uint8_t MIN_SNOOZE_MINUTES = 5;
+constexpr uint8_t MAX_SNOOZE_MINUTES = 15;
+constexpr uint8_t MIN_SNOOZE_LIMIT = 1;
+constexpr uint8_t MAX_SNOOZE_LIMIT = 10;
+constexpr uint8_t UNLIMITED_SNOOZE = 0;
+
 // States within menu
 enum class MenuState {
     MAIN_MENU, //  First menu screen, shows options for clocktime or alarm
@@ -47,7 +68,10 @@ enum class MenuState {
     ALARM_TYPE, // Jumps to alarm type setting screen
     ALARM_TIME, // Jumps to alarm time setting screen
     ALARM_DATE, // Jumps to alarm date setting screen
-    ALARM_SNOOZE, // Jumps to alarm snooze setting screen
+    ALARM_TONE, // Jumps to alarm tone selection screen
+    ALARM_SNOOZE, // Jumps to alarm snooze-delay setting screen
+    ALARM_SNOOZE_LIMIT, // Jumps to alarm snooze-limit setting screen
+    ALARM_DURATION, // Jumps to alarm sound-duration setting screen
     SYSTEM_MENU, // Third menu screen, shows options for system settings
     TIME_FORMAT, // Jumps to time format setting screen
     MANUAL_BRIGHTNESS, // Jumps to brightness control method setting screen
@@ -73,15 +97,24 @@ struct SystemSettings {
 
 // Alarm settings saved in ESP32 memory.
 struct AlarmConfig {
-    bool enabled;           // Is the alarm on?
-    bool daily;             // Is it a daily alarm?
-    uint8_t hour;           // Alarm hour
-    uint8_t minute;         // Alarm minute
-    uint8_t day;            // Alarm day for a date alarm
-    uint8_t month;          // Alarm month for a date alarm
-    uint16_t year;          // Alarm year for a date alarm
-    uint16_t snoozeMinutes; // Snooze length
-    uint8_t tone;           // Alarm tone selection (0, 1, 2, or 3)
+    bool enabled = false;                              // Is the alarm on?
+    bool daily = true;                                 // Is it a daily alarm?
+    uint8_t hour = 0;                                  // Alarm hour (0-23)
+    uint8_t minute = 0;                                // Alarm minute (0-59)
+    uint8_t day = 1;                                   // Alarm day for a dated alarm
+    uint8_t month = 1;                                 // Alarm month for a dated alarm
+    uint16_t year = 2000;                              // Alarm year for a dated alarm
+    uint8_t snoozeMinutes = MIN_SNOOZE_MINUTES;        // Snooze delay (5-15 minutes)
+    uint8_t snoozeLimit = UNLIMITED_SNOOZE;            // Allowed snoozes (1-10, 0 = unlimited)
+    AlarmDuration soundDuration = AlarmDuration::MINUTES_15;
+    AlarmTone tone = AlarmTone::TONE_1;
+};
+
+// Volatile state used while an alarm is sounding or waiting to re-trigger.
+struct AlarmRuntime {
+    bool snoozed = false;
+    uint32_t snoozeWakeEpoch = 0;
+    uint8_t snoozeCount = 0;
 };
 
 // The current time from the RTC
@@ -142,8 +175,8 @@ bool menuTimedOut();   // Check if the menu has been idle too long
 // Control the alarm and snooze
 void startAlarm();     // Start the alarm
 void stopAlarm();      // Stop the alarm
-void startSnooze();    // Start snooze mode
-bool snoozeExpired();  // Check if snooze time is over
+void startSnooze(uint8_t alarmIndex); // Schedule an alarm to re-trigger after its snooze delay
+bool snoozeExpired(uint8_t alarmIndex, uint32_t nowEpoch); // Check a scheduled snooze
 
 // Update the screen and brightness
 void updateDisplay();     // Show the current screen

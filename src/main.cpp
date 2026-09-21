@@ -17,6 +17,7 @@ namespace {
 
     //Alarm data for 3 alarms and a temporary alarm objects
     AlarmConfig alarms[3];
+    AlarmRuntime alarmRuntime[3];
     AlarmConfig tempAlarm {}; // Used for alarm menu data
 
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
@@ -173,8 +174,8 @@ void playAlarmNote() {
     toneStartTime = millis();
 }
 
-void startAlarmSound(uint8_t toneSet) {
-    currentToneIndex = toneSet;
+void startAlarmSound(AlarmTone tone) {
+    currentToneIndex = static_cast<uint8_t>(tone);
     currentNoteIndex = 0;
     alarmSoundActive = true;
     playAlarmNote();
@@ -194,6 +195,38 @@ void updateAlarmSound() {
 void stopAlarmSound() {
     alarmSoundActive = false;
     noTone(BUZZER_PIN);
+}
+
+void startSnooze(uint8_t alarmIndex) {
+    if (alarmIndex >= 3) {
+        return;
+    }
+
+    uint8_t snoozeMinutes = alarms[alarmIndex].snoozeMinutes;
+    if (snoozeMinutes < MIN_SNOOZE_MINUTES) {
+        snoozeMinutes = MIN_SNOOZE_MINUTES;
+    } else if (snoozeMinutes > MAX_SNOOZE_MINUTES) {
+        snoozeMinutes = MAX_SNOOZE_MINUTES;
+    }
+
+    AlarmRuntime& runtime = alarmRuntime[alarmIndex];
+    runtime.snoozed = true;
+    runtime.snoozeWakeEpoch = calculateCurrentEpoch() +
+        static_cast<uint32_t>(snoozeMinutes) * 60U;
+    if (runtime.snoozeCount < UINT8_MAX) {
+        runtime.snoozeCount++;
+    }
+}
+
+bool snoozeExpired(uint8_t alarmIndex, uint32_t nowEpoch) {
+    if (alarmIndex >= 3 || !alarmRuntime[alarmIndex].snoozed) {
+        return false;
+    }
+
+    // Signed subtraction keeps the comparison correct if uint32_t wraps.
+    return static_cast<int32_t>(
+        nowEpoch - alarmRuntime[alarmIndex].snoozeWakeEpoch
+    ) >= 0;
 }
 
 // Start all currently defined hardware interfaces.
@@ -275,7 +308,7 @@ void setup() {
     Serial.begin(9600);
     //testing alarm melodies remove before final submission
     
-    // startAlarmSound(2);
+    // startAlarmSound(AlarmTone::TONE_3);
     // currentState = State::ALARM_RINGING;
     // currentAlarmIndex = 0;
     
@@ -286,10 +319,27 @@ void loop() {
     serviceRtcSynchronization();
     serviceClock();
 
-    // Check if any of the alarms are due to ring
-   for(int i = 0; i < 3; i++) {
-        if (isAlarmDue(alarms[i], currentTime, i)) {
-                hasAlarmTriggered[i] = true; // Mark alarm has triggered for the day
+    // Check scheduled alarms and snoozed alarms while no alarm is sounding.
+    if (currentState != State::ALARM_RINGING) {
+        const uint32_t currentEpoch = calculateCurrentEpoch();
+        for (int i = 0; i < 3; i++) {
+            if (!alarms[i].enabled && alarmRuntime[i].snoozed) {
+                alarmRuntime[i] = AlarmRuntime {};
+            }
+
+            const bool scheduledAlarmDue = isAlarmDue(alarms[i], currentTime, i);
+            const bool snoozedAlarmDue = alarms[i].enabled &&
+                snoozeExpired(i, currentEpoch);
+
+            if (scheduledAlarmDue || snoozedAlarmDue) {
+                if (scheduledAlarmDue) {
+                    hasAlarmTriggered[i] = true;
+                    alarmRuntime[i].snoozeCount = 0;
+                }
+                if (snoozedAlarmDue) {
+                    alarmRuntime[i].snoozed = false;
+                    alarmRuntime[i].snoozeWakeEpoch = 0;
+                }
                 menuIndex = 0; // Reset menu index when alarm rings
                 currentMenu = MenuState::MAIN_MENU; // Reset menu state when alarm rings
                 currentState = State::ALARM_RINGING; // Change state to the alarm ringing state
@@ -299,6 +349,7 @@ void loop() {
                 break;
             }
         }
+    }
 
     // Poll inputs
     EncoderEvent encoderEvent = readEncoderEvent();
@@ -670,50 +721,52 @@ void loop() {
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
                         displayNeedsUpdating = true;
-                        if(menuIndex > 5) {
+                        if(menuIndex > 8) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
                         displayNeedsUpdating = true;
                         if(menuIndex < 0) {
-                            menuIndex = 5;
+                            menuIndex = 8;
                         }
                     }
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         displayNeedsUpdating = true;
                         if (menuIndex == 0) {
-                        //Enabled state configuration
-                        menuIndex = 0;
-                        currentMenu = MenuState::ALARM_ENABLE;
-                        currentState = State::MENU; 
+                            menuIndex = tempAlarm.enabled ? 1 : 0;
+                            currentMenu = MenuState::ALARM_ENABLE;
                         } else if (menuIndex == 1) {
-                        //Time state configuration
-                        menuIndex = 0;
-                        currentMenu = MenuState::ALARM_TIME;
-                        currentState = State::MENU;
+                            menuIndex = 0;
+                            currentMenu = MenuState::ALARM_TIME;
                         } else if (menuIndex == 2) {
-                        // Date state configuration
-                        menuIndex = 0;
-                        currentMenu = MenuState::ALARM_DATE;
-                        currentState = State::MENU;
+                            menuIndex = tempAlarm.daily ? 1 : 0;
+                            currentMenu = MenuState::ALARM_TYPE;
                         } else if (menuIndex == 3) {
-                        // Type state configuration
-                        menuIndex = 0;
-                        currentMenu = MenuState::ALARM_TYPE;
-                        currentState = State::MENU;   
+                            menuIndex = 0;
+                            currentMenu = MenuState::ALARM_DATE;
                         } else if (menuIndex == 4) {
-                        //Snooze state configuration
-                        menuIndex = 0;
-                        currentMenu = MenuState::ALARM_SNOOZE;
-                        currentState = State::MENU;                        
+                            menuIndex = static_cast<int>(tempAlarm.tone);
+                            currentMenu = MenuState::ALARM_TONE;
                         } else if (menuIndex == 5) {
-                            //Saves alarm configurations and loads tempAlarm into selected alarm
+                            menuIndex = tempAlarm.snoozeMinutes >= MIN_SNOOZE_MINUTES &&
+                                                tempAlarm.snoozeMinutes <= MAX_SNOOZE_MINUTES
+                                            ? tempAlarm.snoozeMinutes - MIN_SNOOZE_MINUTES
+                                            : 0;
+                            currentMenu = MenuState::ALARM_SNOOZE;
+                        } else if (menuIndex == 6) {
+                            menuIndex = tempAlarm.snoozeLimit <= MAX_SNOOZE_LIMIT
+                                            ? tempAlarm.snoozeLimit
+                                            : UNLIMITED_SNOOZE;
+                            currentMenu = MenuState::ALARM_SNOOZE_LIMIT;
+                        } else if (menuIndex == 7) {
+                            menuIndex = static_cast<int>(tempAlarm.soundDuration);
+                            currentMenu = MenuState::ALARM_DURATION;
+                        } else if (menuIndex == 8) {
                             alarms[selectedAlarm] = tempAlarm;
                             menuIndex = 0;
                             currentMenu = MenuState::ALARM_SELECT;
-                            currentState = State::MENU; 
-                        }    
+                        }
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
@@ -749,9 +802,9 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         displayNeedsUpdating = true;
                         if (menuIndex == 0) {
-                            tempAlarm.enabled = true;
-                        } else if (menuIndex == 1) {
                             tempAlarm.enabled = false;
+                        } else if (menuIndex == 1) {
+                            tempAlarm.enabled = true;
                         }
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
@@ -967,35 +1020,63 @@ void loop() {
 
                     break;
 
-                case MenuState::ALARM_SNOOZE:
-                    // Handle encoder events to adjust the snooze duration
+                case MenuState::ALARM_TONE:
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
                         displayNeedsUpdating = true;
-                        if(menuIndex > 3) {
+                        if(menuIndex > 2) {
                             menuIndex = 0;
                         }
                     } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
                         menuIndex--;
                         displayNeedsUpdating = true;
                         if(menuIndex < 0) {
-                            menuIndex = 3;
+                            menuIndex = 2;
                         }
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        displayNeedsUpdating = true;
-                        if (menuIndex == 0) {
-                            tempAlarm.snoozeMinutes = 15;
-                        } else if (menuIndex == 1) {
-                            tempAlarm.snoozeMinutes = 30;
-                        } else if (menuIndex == 2) {
-                            tempAlarm.snoozeMinutes = 60;
-                        } else if (menuIndex == 3) {
-                            tempAlarm.snoozeMinutes = 0; // This zero corelates to the "indefinite snooze" option
-                        }
+                        tempAlarm.tone = static_cast<AlarmTone>(menuIndex);
                         menuIndex = 0;
                         currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
+                    }
+                    break;
+
+                case MenuState::ALARM_SNOOZE:
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        displayNeedsUpdating = true;
+                        if(menuIndex > MAX_SNOOZE_MINUTES - MIN_SNOOZE_MINUTES) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        displayNeedsUpdating = true;
+                        if(menuIndex < 0) {
+                            menuIndex = MAX_SNOOZE_MINUTES - MIN_SNOOZE_MINUTES;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        tempAlarm.snoozeMinutes = static_cast<uint8_t>(
+                            MIN_SNOOZE_MINUTES + menuIndex
+                        );
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
@@ -1010,6 +1091,76 @@ void loop() {
                         currentState = State::RUNNING;
                         displayNeedsUpdating = true;
                     } 
+                    break;
+
+                case MenuState::ALARM_SNOOZE_LIMIT:
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        displayNeedsUpdating = true;
+                        if(menuIndex > MAX_SNOOZE_LIMIT) {
+                            menuIndex = UNLIMITED_SNOOZE;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        displayNeedsUpdating = true;
+                        if(menuIndex < UNLIMITED_SNOOZE) {
+                            menuIndex = MAX_SNOOZE_LIMIT;
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        tempAlarm.snoozeLimit = static_cast<uint8_t>(menuIndex);
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
+                    }
+                    break;
+
+                case MenuState::ALARM_DURATION:
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                        menuIndex++;
+                        displayNeedsUpdating = true;
+                        if(menuIndex > static_cast<int>(AlarmDuration::INDEFINITE)) {
+                            menuIndex = 0;
+                        }
+                    } else if (encoderEvent == EncoderEvent::COUNTER_CLOCKWISE) {
+                        menuIndex--;
+                        displayNeedsUpdating = true;
+                        if(menuIndex < 0) {
+                            menuIndex = static_cast<int>(AlarmDuration::INDEFINITE);
+                        }
+                    }
+
+                    if (encoderEvent == EncoderEvent::PRESSED) {
+                        tempAlarm.soundDuration = static_cast<AlarmDuration>(menuIndex);
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+
+                    if (buttonEvent == ButtonEvent::BACK_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::ALARM_MENU;
+                        displayNeedsUpdating = true;
+                    }
+                    if (buttonEvent == ButtonEvent::MENU_PRESSED) {
+                        menuIndex = 0;
+                        currentMenu = MenuState::MAIN_MENU;
+                        currentState = State::RUNNING;
+                        displayNeedsUpdating = true;
+                    }
                     break;
                 case MenuState::SYSTEM_MENU:
                     // Handle encoder events to navigate the system menu
@@ -1184,12 +1335,23 @@ void loop() {
             if (buttonEvent == ButtonEvent::STOP_PRESSED) {
                 stopAlarmSound();
                 hasAlarmTriggered[currentAlarmIndex] = true;
+                alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
                 currentState = State::RUNNING;
+                displayNeedsUpdating = true;
             } else if (buttonEvent == ButtonEvent::SNOOZE_PRESSED) {
                 stopAlarmSound();
                 hasAlarmTriggered[currentAlarmIndex] = true; // don't re-fire today's slot
-                // TODO: schedule a re-trigger `alarms[currentAlarmIndex].snoozeMinutes` from now
+
+                const uint8_t snoozeLimit = alarms[currentAlarmIndex].snoozeLimit;
+                const bool snoozeAvailable = snoozeLimit == UNLIMITED_SNOOZE ||
+                    alarmRuntime[currentAlarmIndex].snoozeCount < snoozeLimit;
+                if (snoozeAvailable) {
+                    startSnooze(currentAlarmIndex);
+                } else {
+                    alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
+                }
                 currentState = State::RUNNING;
+                displayNeedsUpdating = true;
             }
             break;
     }
@@ -1232,8 +1394,17 @@ void loop() {
             case MenuState::ALARM_TYPE:
                 Serial.println("Alarm Type");
                 break;
+            case MenuState::ALARM_TONE:
+                Serial.println("Alarm Tone");
+                break;
             case MenuState::ALARM_SNOOZE:
-                Serial.println("Alarm Snooze");
+                Serial.println("Alarm Snooze Delay");
+                break;
+            case MenuState::ALARM_SNOOZE_LIMIT:
+                Serial.println("Alarm Snooze Limit");
+                break;
+            case MenuState::ALARM_DURATION:
+                Serial.println("Alarm Duration");
                 break;
             case MenuState::SYSTEM_MENU:
                 Serial.println("System Menu");
@@ -1565,35 +1736,36 @@ void updateDisplay() {
             }
             case MenuState::ALARM_MENU: {
                 ssd1306_printFixed(0, 0, "Alarm Menu", STYLE_NORMAL);
-                if (menuIndex == 0) {
-                    ssd1306_printFixed(0, 16, "> Alarm Enable", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm Time", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  Alarm Type", STYLE_NORMAL);
+                static const char* const alarmMenuItems[] = {
+                    "Enabled",
+                    "Time",
+                    "Type",
+                    "Date",
+                    "Tone",
+                    "Snooze Delay",
+                    "Snooze Limit",
+                    "Sound Duration",
+                    "Save Alarm"
+                };
+
+                int firstItem = 0;
+                if (menuIndex >= 2 && menuIndex <= 7) {
+                    firstItem = menuIndex - 1;
+                } else if (menuIndex == 8) {
+                    firstItem = 6;
                 }
-                else if (menuIndex == 1) {
-                    ssd1306_printFixed(0, 16, "  Alarm Enable", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "> Alarm Time", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  Alarm Type", STYLE_NORMAL);
-                }
-                else if (menuIndex == 2) {
-                    ssd1306_printFixed(0, 16, "  Alarm Enable", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm Time", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> Alarm Type", STYLE_NORMAL);
-                }
-                else if (menuIndex == 3) {
-                    ssd1306_printFixed(0, 16, "  Alarm Time", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm Type", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> Alarm Date", STYLE_NORMAL);
-                }
-                else if (menuIndex == 4) {
-                    ssd1306_printFixed(0, 16, "  Alarm Type", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm Date", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> Alarm Snooze", STYLE_NORMAL);
-                }
-                else if (menuIndex == 5) {
-                    ssd1306_printFixed(0, 16, "  Alarm Date", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarm Snooze", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> Save Alarm", STYLE_NORMAL);
+
+                for (int row = 0; row < 3; row++) {
+                    const int item = firstItem + row;
+                    char line[22];
+                    snprintf(
+                        line,
+                        sizeof(line),
+                        "%c %s",
+                        item == menuIndex ? '>' : ' ',
+                        alarmMenuItems[item]
+                    );
+                    ssd1306_printFixed(0, 16 * (row + 1), line, STYLE_NORMAL);
                 }
                 break;
             }
@@ -1667,27 +1839,63 @@ void updateDisplay() {
             }
                 break;
             }
+            case MenuState::ALARM_TONE: {
+                ssd1306_printFixed(0, 0, "Alarm Tone", STYLE_NORMAL);
+                ssd1306_printFixed(0, 16, menuIndex == 0 ? "> Tone 1" : "  Tone 1", STYLE_NORMAL);
+                ssd1306_printFixed(0, 32, menuIndex == 1 ? "> Tone 2" : "  Tone 2", STYLE_NORMAL);
+                ssd1306_printFixed(0, 48, menuIndex == 2 ? "> Tone 3" : "  Tone 3", STYLE_NORMAL);
+                break;
+            }
             case MenuState::ALARM_SNOOZE: {
-                ssd1306_printFixed(0, 0, "Alarm Snooze", STYLE_NORMAL);
-                 if (menuIndex == 0) {
-                    ssd1306_printFixed(0, 16, "> 15 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  30 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  60 Minutes", STYLE_NORMAL);
+                ssd1306_printFixed(0, 0, "Snooze Delay", STYLE_NORMAL);
+                ssd1306_printFixed(0, 16, "Range: 5-15 min", STYLE_NORMAL);
+                char snoozeText[14];
+                snprintf(
+                    snoozeText,
+                    sizeof(snoozeText),
+                    "> %u minutes",
+                    static_cast<unsigned>(MIN_SNOOZE_MINUTES + menuIndex)
+                );
+                ssd1306_printFixed(0, 32, snoozeText, STYLE_NORMAL);
+                break;
+            }
+            case MenuState::ALARM_SNOOZE_LIMIT: {
+                ssd1306_printFixed(0, 0, "Snooze Limit", STYLE_NORMAL);
+                ssd1306_printFixed(0, 16, "0 = unlimited", STYLE_NORMAL);
+                char limitText[14];
+                if (menuIndex == UNLIMITED_SNOOZE) {
+                    snprintf(limitText, sizeof(limitText), "> Unlimited");
+                } else {
+                    snprintf(
+                        limitText,
+                        sizeof(limitText),
+                        "> %u times",
+                        static_cast<unsigned>(menuIndex)
+                    );
                 }
-                else if (menuIndex == 1) {
-                    ssd1306_printFixed(0, 16, "  15 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "> 30 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  60 Minutes", STYLE_NORMAL);
-                }
-                else if (menuIndex == 2) {
-                    ssd1306_printFixed(0, 16, "  15 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  30 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> 60 Minutes", STYLE_NORMAL);
-                }
-                else if (menuIndex == 3) {
-                    ssd1306_printFixed(0, 16, "  30 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  60 Minutes", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> No snooze", STYLE_NORMAL);
+                ssd1306_printFixed(0, 32, limitText, STYLE_NORMAL);
+                break;
+            }
+            case MenuState::ALARM_DURATION: {
+                ssd1306_printFixed(0, 0, "Sound Duration", STYLE_NORMAL);
+                static const char* const durationItems[] = {
+                    "15 minutes",
+                    "30 minutes",
+                    "60 minutes",
+                    "Indefinite"
+                };
+                const int firstItem = menuIndex == 3 ? 1 : 0;
+                for (int row = 0; row < 3; row++) {
+                    const int item = firstItem + row;
+                    char line[18];
+                    snprintf(
+                        line,
+                        sizeof(line),
+                        "%c %s",
+                        item == menuIndex ? '>' : ' ',
+                        durationItems[item]
+                    );
+                    ssd1306_printFixed(0, 16 * (row + 1), line, STYLE_NORMAL);
                 }
                 break;
             }
