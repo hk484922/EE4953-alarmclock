@@ -318,7 +318,6 @@ void setup() {
 void loop() {
     serviceRtcSynchronization();
     serviceClock();
-
     // Check scheduled alarms and snoozed alarms while no alarm is sounding.
     if (currentState != State::ALARM_RINGING) {
         const uint32_t currentEpoch = calculateCurrentEpoch();
@@ -412,6 +411,7 @@ void loop() {
         currentMenu = MenuState::MAIN_MENU;
         menuIndex = 0;
         currentState = State::RUNNING;
+        displayNeedsUpdating = true;
     }
     
 
@@ -1422,7 +1422,7 @@ void loop() {
     }
     previousMenu = currentMenu;
     previousMenuIndex = menuIndex;
-    updateCurrentState();
+    updateCurrentState();       //this currently does nothing
     updateDisplay();
     updateBrightness();
 }
@@ -1592,63 +1592,61 @@ void updateDisplay() {
 
     lastDisplayMs = nowMs;
 
-    if(!displayNeedsUpdating && currentState != State::RUNNING){
+    if (currentState == State::RUNNING ) {
+        if (displayNeedsUpdating) {
+            ssd1306_clearScreen();
+            displayNeedsUpdating = false;
+        }
+
+        char timeText[9];
+        snprintf(timeText, sizeof(timeText), "%02u:%02u:%02u",
+            static_cast<unsigned>(currentTime.hour),
+            static_cast<unsigned>(currentTime.minute),
+            static_cast<unsigned>(currentTime.second));
+
+        char dateText[11];
+        snprintf(dateText, sizeof(dateText), "%02u/%02u/%04u",
+            static_cast<unsigned>(currentTime.month),
+            static_cast<unsigned>(currentTime.day),
+            static_cast<unsigned>(currentTime.year));
+
+        ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+        ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+        return; // done, skip the menu/alarm switch below
+    }
+    if(!displayNeedsUpdating){
         return;
     }
 
     displayNeedsUpdating = false;
 
     ssd1306_clearScreen();
+    
+    
+
 
     switch (currentState){
 
-        case State::RUNNING: {
-        
-            char timeText[9];
-            snprintf(
-             timeText,
-             sizeof(timeText),
-             "%02u:%02u:%02u",
-             static_cast<unsigned>(currentTime.hour),
-              static_cast<unsigned>(currentTime.minute),
-              static_cast<unsigned>(currentTime.second)
-        );
-
-             char dateText[11];
-             snprintf( 
-             dateText,
-             sizeof(dateText),
-             "%02u/%02u/%04u",
-             static_cast<unsigned>(currentTime.month),
-             static_cast<unsigned>(currentTime.day),
-             static_cast<unsigned>(currentTime.year)
-         );
-
-            ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
-            ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
-            break;
-        }
-
-    case State::MENU: {
-        switch(currentMenu){
-            case MenuState::MAIN_MENU: {
-                ssd1306_printFixed(0, 0, "Main Menu", STYLE_NORMAL);
-                if (menuIndex == 0) {
-                    ssd1306_printFixed(0, 16, "> Clock", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
-                }
-                else if (menuIndex == 1) {
-                    ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "> Alarms", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
-                }
-                else {
-                    ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
-                    ssd1306_printFixed(0, 48, "> System", STYLE_NORMAL);
-                }
-                break;
+            case State::MENU: {
+                switch(currentMenu){
+                    case MenuState::MAIN_MENU: {
+                        ssd1306_printFixed(0, 0, "Main Menu", STYLE_NORMAL);
+                        if (menuIndex == 0) {
+                            ssd1306_printFixed(0, 16, "> Clock", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
+                        }
+                        else if (menuIndex == 1) {
+                            ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 32, "> Alarms", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 48, "  System", STYLE_NORMAL);
+                        }
+                        else {
+                            ssd1306_printFixed(0, 16, "  Clock", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 32, "  Alarms", STYLE_NORMAL);
+                            ssd1306_printFixed(0, 48, "> System", STYLE_NORMAL);
+                        }
+                        break;
             }
             case MenuState::CLOCK_MENU: {
                 ssd1306_printFixed(0, 0, "Clock Menu", STYLE_NORMAL);
