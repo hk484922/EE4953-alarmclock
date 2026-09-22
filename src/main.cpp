@@ -30,7 +30,7 @@ namespace {
 
     uint8_t currentAlarmIndex = 0;  // Index of the currently active alarm (0, 1, or 2)
 
-    uint8_t previousMenuIndex = 0; // Track the previous menu index for testing
+   // uint8_t previousMenuIndex = 0; // Track the previous menu index for testing
 
     a21::EC11 encoder; // Instance of encoder class
 
@@ -48,7 +48,7 @@ namespace {
     ClockTime currentTime {};
     ClockTime tempTime {}; // Used for clocktime menu data
 
-    SystemSettings currentSystemSettings {TimeFormat::HOUR_24, false, 128}; // Default system settings
+    SystemSettings currentSystemSettings {TimeFormat::HOUR_24, false, 125}; // Default system settings
 
     MenuState currentMenu = MenuState::MAIN_MENU;
     
@@ -201,6 +201,150 @@ void stopAlarmSound() {
     noTone(BUZZER_PIN);
 }
 
+void saveAlarmConfiguration(uint8_t alarmIndex) {
+    if (alarmIndex >= 3) {
+        return;
+    }
+
+    Preferences* alarmPrefs;
+
+    if (alarmIndex == 0) {
+        alarmPrefs = &alarm1Prefs;
+    } else if (alarmIndex == 1) {
+        alarmPrefs = &alarm2Prefs;
+    } else {
+        alarmPrefs = &alarm3Prefs;
+    }
+
+    alarmPrefs->begin("alarm", false);
+
+    alarmPrefs->putBool("enabled", alarms[alarmIndex].enabled);
+    alarmPrefs->putBool("daily", alarms[alarmIndex].daily);
+    alarmPrefs->putUChar("hour", alarms[alarmIndex].hour);
+    alarmPrefs->putUChar("minute", alarms[alarmIndex].minute);
+    alarmPrefs->putUChar("day", alarms[alarmIndex].day);
+    alarmPrefs->putUChar("month", alarms[alarmIndex].month);
+    alarmPrefs->putUShort("year", alarms[alarmIndex].year);
+    alarmPrefs->putUChar("snoozeMin", alarms[alarmIndex].snoozeMinutes);
+    alarmPrefs->putUChar("snoozeLim", alarms[alarmIndex].snoozeLimit);
+
+    alarmPrefs->putUChar(
+        "duration",
+        static_cast<uint8_t>(alarms[alarmIndex].soundDuration)
+    );
+
+    alarmPrefs->putUChar(
+        "tone",
+        static_cast<uint8_t>(alarms[alarmIndex].tone)
+    );
+
+    alarmPrefs->end();
+}
+
+void loadAlarmConfiguration(uint8_t alarmIndex) {
+    if (alarmIndex >= 3) {
+        return;
+    }
+
+    Preferences* alarmPrefs;
+
+    if (alarmIndex == 0) {
+        alarmPrefs = &alarm1Prefs;
+    } else if (alarmIndex == 1) {
+        alarmPrefs = &alarm2Prefs;
+    } else {
+        alarmPrefs = &alarm3Prefs;
+    }
+
+    alarmPrefs->begin("alarm", true);
+
+    alarms[alarmIndex].enabled =
+        alarmPrefs->getBool("enabled", false);
+
+    alarms[alarmIndex].daily =
+        alarmPrefs->getBool("daily", true);
+
+    alarms[alarmIndex].hour =
+        alarmPrefs->getUChar("hour", 0);
+
+    alarms[alarmIndex].minute =
+        alarmPrefs->getUChar("minute", 0);
+
+    alarms[alarmIndex].day =
+        alarmPrefs->getUChar("day", 1);
+
+    alarms[alarmIndex].month =
+        alarmPrefs->getUChar("month", 1);
+
+    alarms[alarmIndex].year =
+        alarmPrefs->getUShort("year", 2000);
+
+    alarms[alarmIndex].snoozeMinutes =
+        alarmPrefs->getUChar("snoozeMin", MIN_SNOOZE_MINUTES);
+
+    alarms[alarmIndex].snoozeLimit =
+        alarmPrefs->getUChar("snoozeLim", UNLIMITED_SNOOZE);
+
+    alarms[alarmIndex].soundDuration =
+        static_cast<AlarmDuration>(
+            alarmPrefs->getUChar(
+                "duration",
+                static_cast<uint8_t>(AlarmDuration::MINUTES_15)
+            )
+        );
+
+    alarms[alarmIndex].tone =
+        static_cast<AlarmTone>(
+            alarmPrefs->getUChar(
+                "tone",
+                static_cast<uint8_t>(AlarmTone::TONE_1)
+            )
+        );
+
+    alarmPrefs->end();
+}
+
+void saveSystemSettings() {
+    systemPrefs.begin("system", false);
+
+    systemPrefs.putUChar(
+        "timeFormat",
+        static_cast<uint8_t>(currentSystemSettings.timeFormat)
+    );
+
+    systemPrefs.putBool(
+        "manual",
+        currentSystemSettings.manualBrightness
+    );
+
+    systemPrefs.putUChar(
+        "brightness",
+        currentSystemSettings.brightnessLevel
+    );
+
+    systemPrefs.end();
+}
+
+void loadSystemSettings() {
+    systemPrefs.begin("system", true);
+
+    currentSystemSettings.timeFormat =
+        static_cast<TimeFormat>(
+            systemPrefs.getUChar(
+                "timeFormat",
+                static_cast<uint8_t>(TimeFormat::HOUR_24)
+            )
+        );
+
+    currentSystemSettings.manualBrightness =
+        systemPrefs.getBool("manual", false);
+
+    currentSystemSettings.brightnessLevel =
+        systemPrefs.getUChar("brightness", 125);
+
+    systemPrefs.end();
+}
+
 void startSnooze(uint8_t alarmIndex) {
     if (alarmIndex >= 3) {
         return;
@@ -303,7 +447,10 @@ void updateCurrentState() {
 // Run once when the ESP32 starts
 void setup() {
     initializeHardware();
-
+    loadAlarmConfiguration(0);
+    loadAlarmConfiguration(1);
+    loadAlarmConfiguration(2);
+    loadSystemSettings();
     synchronizeWithRtc();
     currentTime = readCurrentTime();
 
@@ -322,12 +469,20 @@ void setup() {
 void loop() {
     serviceRtcSynchronization();
     serviceClock();
+    
     // Check scheduled alarms and snoozed alarms while no alarm is sounding.
     if (currentState != State::ALARM_RINGING) {
         const uint32_t currentEpoch = calculateCurrentEpoch();
         for (int i = 0; i < 3; i++) {
             if (!alarms[i].enabled && alarmRuntime[i].snoozed) {
                 alarmRuntime[i] = AlarmRuntime {};
+            }
+            // Reset the trigger flag after the alarm's scheduled minute has passed.
+            // This allows the alarm to trigger again the next day.
+            if (hasAlarmTriggered[i] &&
+                (currentTime.hour != alarms[i].hour ||
+                currentTime.minute != alarms[i].minute)) {
+                hasAlarmTriggered[i] = false;
             }
 
             const bool scheduledAlarmDue = isAlarmDue(alarms[i], currentTime, i);
@@ -768,6 +923,7 @@ void loop() {
                             currentMenu = MenuState::ALARM_DURATION;
                         } else if (menuIndex == 8) {
                             alarms[selectedAlarm] = tempAlarm;
+                            saveAlarmConfiguration(selectedAlarm);
                             menuIndex = 0;
                             currentMenu = MenuState::ALARM_SELECT;
                         }
@@ -1132,7 +1288,7 @@ void loop() {
                     }
                     break;
 
-                case MenuState::ALARM_DURATION:
+                case MenuState::ALARM_DURATION:                    
                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
                         displayNeedsUpdating = true;
@@ -1193,7 +1349,7 @@ void loop() {
                         } else if (menuIndex == 2) {
                             menuIndex = 0; // Reset menu index for brightness level selection
                             currentMenu = MenuState::BRIGHTNESS_LEVEL;
-                        } 
+                        }
                     }
 
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
@@ -1235,9 +1391,9 @@ void loop() {
                             menuIndex = 0; // Reset menu index for time format selection
                             
                         }
+                        saveSystemSettings();
                         currentMenu = MenuState::SYSTEM_MENU;
                     }
-
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
@@ -1253,7 +1409,7 @@ void loop() {
                     break;
                 case MenuState::MANUAL_BRIGHTNESS:
                     // Handle encoder events to adjust manual brightness level
-                     if (encoderEvent == EncoderEvent::CLOCKWISE) {
+                    if (encoderEvent == EncoderEvent::CLOCKWISE) {
                         menuIndex++;
                         displayNeedsUpdating = true;
                         if(menuIndex > 1) {
@@ -1270,13 +1426,12 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         displayNeedsUpdating = true;
                         if (menuIndex == 0) {
-                            currentSystemSettings.manualBrightness = false; // Manual brightness disabled, automatic brightness enabled
-                            menuIndex = 0; // Reset menu index for time format selection
+                            currentSystemSettings.manualBrightness = false;
                         } else if (menuIndex == 1) {
-                            currentSystemSettings.manualBrightness = true; // Manual brightness enabled, automatic brightness disabled
-                            menuIndex = 0; // Reset menu index for time format selection
-                            
+                            currentSystemSettings.manualBrightness = true;
                         }
+                        saveSystemSettings();
+                        menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
                     }
 
@@ -1310,12 +1465,12 @@ void loop() {
                     }
 
                     if (encoderEvent == EncoderEvent::PRESSED) {
-                        currentSystemSettings.brightnessLevel = menuIndex; // Set the brightness level based on the menu index
-                        menuIndex = 0; // Reset menu index for time format selection
+                        currentSystemSettings.brightnessLevel = static_cast<uint8_t>(menuIndex);
+                        saveSystemSettings();
+                        menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
                         displayNeedsUpdating = true;
                     }
-
                     if (buttonEvent == ButtonEvent::BACK_PRESSED) {
                         menuIndex = 0;
                         currentMenu = MenuState::SYSTEM_MENU;
@@ -1340,9 +1495,14 @@ void loop() {
                 stopAlarmSound();
                 hasAlarmTriggered[currentAlarmIndex] = true;
                 alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
+                if (!alarms[currentAlarmIndex].daily) {
+                    alarms[currentAlarmIndex].enabled = false;
+                    saveAlarmConfiguration(currentAlarmIndex);
+                }
                 currentState = State::RUNNING;
                 displayNeedsUpdating = true;
-            } else if (buttonEvent == ButtonEvent::SNOOZE_PRESSED) {
+            }
+            else if (buttonEvent == ButtonEvent::SNOOZE_PRESSED) {
                 stopAlarmSound();
                 hasAlarmTriggered[currentAlarmIndex] = true; // don't re-fire today's slot
 
@@ -1359,14 +1519,13 @@ void loop() {
             }
             break;
     }
-    
 
-    if(menuIndex != previousMenuIndex) {
-        Serial.print("Menu Index: ");
-        Serial.println(menuIndex);
-    }
-    if(currentMenu != previousMenu) {
-        Serial.print("Current Menu: ");
+    // if(menuIndex != previousMenuIndex) {
+    //     Serial.print("Menu Index: ");
+    //     Serial.println(menuIndex);
+    // }
+    // if(currentMenu != previousMenu) {
+    //     Serial.print("Current Menu: ");
         switch(currentMenu) {
             case MenuState::MAIN_MENU:
                 Serial.println("Main Menu");
@@ -1424,12 +1583,11 @@ void loop() {
                 break;
         }
     }
-    previousMenu = currentMenu;
-    previousMenuIndex = menuIndex;
-    updateCurrentState();       //this currently does nothing
-    updateDisplay();
-    updateBrightness();
-}
+   // previousMenu = currentMenu;
+   // previousMenuIndex = menuIndex;
+    //updateCurrentState();       //this currently does nothing
+    //updateDisplay();
+    //updateBrightness();
 
 // Reads hardware RTC and saves both reference values
 void synchronizeWithRtc() {
@@ -1596,7 +1754,7 @@ void updateDisplay() {
 
     lastDisplayMs = nowMs;
 
-    if (currentState == State::RUNNING ) {
+    if (currentState == State::RUNNING || currentState == State::ALARM_RINGING) {
         if (displayNeedsUpdating) {
             ssd1306_clearScreen();
             displayNeedsUpdating = false;
@@ -1625,8 +1783,18 @@ void updateDisplay() {
             static_cast<unsigned>(currentTime.day),
             static_cast<unsigned>(currentTime.year));
 
-        ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
-        ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+        if (currentState == State::ALARM_RINGING) {                     //Alarming ringing display, lets time keep going while displaying the alarm message
+            ssd1306_printFixed(0, 0, "Alarm Ringing", STYLE_NORMAL);
+            ssd1306_printFixed(0, 16, timeText, STYLE_NORMAL);
+            ssd1306_printFixed(0, 32, "Snooze or Stop", STYLE_NORMAL);
+        }
+        else {
+            ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+            ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+        }
+
+
+
         return; // done, skip the menu/alarm switch below
     }
     if(!displayNeedsUpdating){
@@ -1637,9 +1805,6 @@ void updateDisplay() {
 
     ssd1306_clearScreen();
     
-    
-
-
     switch (currentState){
 
             case State::MENU: {
@@ -1964,7 +2129,7 @@ void updateDisplay() {
                     brightnessText,
                     sizeof(brightnessText),
                     "%u",
-                    static_cast<unsigned>(currentSystemSettings.brightnessLevel)
+                    static_cast<unsigned>(menuIndex)
                 );
 
                 ssd1306_printFixed(0, 32, brightnessText, STYLE_NORMAL);
@@ -1973,10 +2138,7 @@ void updateDisplay() {
         }
         break;
     }
-    case State::ALARM_RINGING: {
-        break;
-    }       
-    }
+}
 
 
     /*char timeText[9];
@@ -2005,14 +2167,20 @@ void updateDisplay() {
 }
 
 void updateBrightness() {
-    // Brightness calibration and manual override behavior remain to be defined.
-    if(currentSystemSettings.manualBrightness) {
+    // If manual brightness is enabled, use the brightness selected by the user.
+    if (currentSystemSettings.manualBrightness) {
         ssd1306_setContrast(currentSystemSettings.brightnessLevel);
-    } else {
-        // Automatic brightness control logic to be implemented.
-        ssd1306_setContrast(255);
+        return;
     }
+
+    // Automatic brightness:
+    int lightLevel = analogRead(LIGHT_SENSOR_PIN);
+
+    // Convert the ESP32 ADC range (0-4095) to the OLED contrast range (0-255).
+    int brightnessLevel = map(lightLevel, 0, 4095, 0, 255); // Change the 2nd and 3rd values to calibrate
+    ssd1306_setContrast(static_cast<uint8_t>(brightnessLevel));
 }
+
 //This function returns the number of days in a given month, accounting for leap years.
 int daysInMonth(uint8_t month, uint16_t year) {
     switch (month) {
