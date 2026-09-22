@@ -1831,7 +1831,17 @@ void updateDisplay() {
             static_cast<unsigned>(currentTime.year));
 
         if (currentState == State::ALARM_RINGING) {                     //Alarming ringing display, lets time keep going while displaying the alarm message
-            ssd1306_printFixed(0, 0, "Alarm Ringing", STYLE_NORMAL);
+            switch(currentAlarmIndex) {
+                case 0:
+                    ssd1306_printFixed(0, 0, "Alarm 1 Ringing", STYLE_NORMAL);
+                    break;
+                case 1:
+                    ssd1306_printFixed(0, 0, "Alarm 2 Ringing", STYLE_NORMAL);
+                    break;
+                case 2:
+                    ssd1306_printFixed(0, 0, "Alarm 3 Ringing", STYLE_NORMAL);
+                    break;
+            }
             ssd1306_printFixed(0, 16, timeText, STYLE_NORMAL);
             ssd1306_printFixed(0, 32, "Snooze or Stop", STYLE_NORMAL);
         }
@@ -2231,7 +2241,7 @@ void updateBrightness() {
         hasAutomaticSample = true;
         const int lightLevel = analogRead(LIGHT_SENSOR_PIN);
         desiredBrightness = static_cast<uint8_t>(
-            map(lightLevel, 0, 4095, 0, 255)
+            map(lightLevel, 4095, 0, 0, 255)
         );
     }
 
