@@ -1,7 +1,7 @@
 #ifndef MAIN_H
 #define MAIN_H
 
-#include <Arduino.h>
+#include <stdint.h>
 
 // The different modes of the clock
 enum class State {
@@ -49,6 +49,44 @@ enum class AlarmDuration : uint8_t {
     MINUTES_60,
     INDEFINITE
 };
+
+constexpr uint32_t BRIGHTNESS_SAMPLE_INTERVAL_MS = 100;
+
+constexpr uint32_t alarmDurationMilliseconds(AlarmDuration duration) {
+    return duration == AlarmDuration::MINUTES_15 ? 15UL * 60UL * 1000UL :
+           duration == AlarmDuration::MINUTES_30 ? 30UL * 60UL * 1000UL :
+           duration == AlarmDuration::MINUTES_60 ? 60UL * 60UL * 1000UL :
+           duration == AlarmDuration::INDEFINITE ? 0UL :
+           15UL * 60UL * 1000UL;
+}
+
+constexpr bool alarmDurationElapsed(
+    AlarmDuration duration,
+    uint32_t startedAtMs,
+    uint32_t nowMs
+) {
+    return alarmDurationMilliseconds(duration) != 0UL &&
+        static_cast<uint32_t>(nowMs - startedAtMs) >=
+            alarmDurationMilliseconds(duration);
+}
+
+constexpr int timeFormatMenuIndex(TimeFormat format) {
+    return format == TimeFormat::HOUR_24 ? 1 : 0;
+}
+
+constexpr int brightnessModeMenuIndex(bool manualBrightness) {
+    return manualBrightness ? 1 : 0;
+}
+
+constexpr bool brightnessSampleDue(
+    uint32_t nowMs,
+    uint32_t lastSampleMs,
+    bool hasSample
+) {
+    return !hasSample ||
+        static_cast<uint32_t>(nowMs - lastSampleMs) >=
+            BRIGHTNESS_SAMPLE_INTERVAL_MS;
+}
 
 constexpr uint8_t MIN_SNOOZE_MINUTES = 5;
 constexpr uint8_t MAX_SNOOZE_MINUTES = 15;
@@ -158,19 +196,15 @@ void synchronizeWithRtc();                                        // Refresh sof
 uint32_t calculateCurrentEpoch();                                 // Add elapsed ESP32 time to the RTC anchor
 void serviceClock();                                               // Refresh the shared current-time snapshot
 void serviceRtcSynchronization();                                  // Resynchronize the RTC anchor once per day
-AlarmConfig loadAlarmConfiguration();                              // Load alarm settings from memory
-void saveAlarmConfiguration(const AlarmConfig& config);            // Save alarm settings to memory
+void loadAlarmConfiguration(uint8_t alarmIndex);                    // Load one alarm's settings from memory
+void saveAlarmConfiguration(uint8_t alarmIndex);                    // Save one alarm's settings to memory
+void loadSystemSettings();                                         // Load system settings from memory
+void saveSystemSettings();                                         // Save system settings to memory
 bool isAlarmDue(const AlarmConfig& config, const ClockTime& time, int alarmIndex); // Check if the alarm should ring
 
 // Change and run the current mode
 void enterState(State newState);  // Change to a new mode
 void updateCurrentState();        // Run the current mode
-
-// Work with the settings menu
-void openMenu();       // Open the settings menu
-void closeMenu();      // Close the settings menu
-void updateMenu();     // Handle menu input
-bool menuTimedOut();   // Check if the menu has been idle too long
 
 // Control the alarm and snooze
 void startAlarm();     // Start the alarm
@@ -181,8 +215,6 @@ bool snoozeExpired(uint8_t alarmIndex, uint32_t nowEpoch); // Check a scheduled 
 // Update the screen and brightness
 void updateDisplay();     // Show the current screen
 void updateBrightness();  // Set the display brightness
-
-void requestDisplayUpdate();
 
 int daysInMonth(uint8_t month, uint16_t year); // Returns the number of days in a given month and year
 
