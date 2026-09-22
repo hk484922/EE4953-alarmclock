@@ -207,16 +207,23 @@ void saveAlarmConfiguration(uint8_t alarmIndex) {
     }
 
     Preferences* alarmPrefs;
+    const char* alarmNamespace;
 
+    // Select the Preferences object and storage namespace
+    // for the alarm being saved.
     if (alarmIndex == 0) {
         alarmPrefs = &alarm1Prefs;
+        alarmNamespace = "alarm1";
     } else if (alarmIndex == 1) {
         alarmPrefs = &alarm2Prefs;
+        alarmNamespace = "alarm2";
     } else {
         alarmPrefs = &alarm3Prefs;
+        alarmNamespace = "alarm3";
     }
 
-    alarmPrefs->begin("alarm", false);
+    // Open the correct alarm's storage namespace.
+    alarmPrefs->begin(alarmNamespace, false);
 
     alarmPrefs->putBool("enabled", alarms[alarmIndex].enabled);
     alarmPrefs->putBool("daily", alarms[alarmIndex].daily);
@@ -227,12 +234,10 @@ void saveAlarmConfiguration(uint8_t alarmIndex) {
     alarmPrefs->putUShort("year", alarms[alarmIndex].year);
     alarmPrefs->putUChar("snoozeMin", alarms[alarmIndex].snoozeMinutes);
     alarmPrefs->putUChar("snoozeLim", alarms[alarmIndex].snoozeLimit);
-
     alarmPrefs->putUChar(
         "duration",
         static_cast<uint8_t>(alarms[alarmIndex].soundDuration)
     );
-
     alarmPrefs->putUChar(
         "tone",
         static_cast<uint8_t>(alarms[alarmIndex].tone)
@@ -247,16 +252,23 @@ void loadAlarmConfiguration(uint8_t alarmIndex) {
     }
 
     Preferences* alarmPrefs;
+    const char* alarmNamespace;
 
+    // Select the Preferences object and storage namespace
+    // for the alarm being loaded.
     if (alarmIndex == 0) {
         alarmPrefs = &alarm1Prefs;
+        alarmNamespace = "alarm1";
     } else if (alarmIndex == 1) {
         alarmPrefs = &alarm2Prefs;
+        alarmNamespace = "alarm2";
     } else {
         alarmPrefs = &alarm3Prefs;
+        alarmNamespace = "alarm3";
     }
 
-    alarmPrefs->begin("alarm", true);
+    // Open the correct alarm's storage namespace.
+    alarmPrefs->begin(alarmNamespace, true);
 
     alarms[alarmIndex].enabled =
         alarmPrefs->getBool("enabled", false);
@@ -1347,7 +1359,7 @@ void loop() {
                             menuIndex = 0; // Reset menu index for brightness selection
                             currentMenu = MenuState::MANUAL_BRIGHTNESS;
                         } else if (menuIndex == 2) {
-                            menuIndex = 0; // Reset menu index for brightness level selection
+                            menuIndex = currentSystemSettings.brightnessLevel;
                             currentMenu = MenuState::BRIGHTNESS_LEVEL;
                         }
                     }
@@ -1513,6 +1525,10 @@ void loop() {
                     startSnooze(currentAlarmIndex);
                 } else {
                     alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
+                    if (!alarms[currentAlarmIndex].daily) {
+                        alarms[currentAlarmIndex].enabled = false;
+                        saveAlarmConfiguration(currentAlarmIndex);
+                    }
                 }
                 currentState = State::RUNNING;
                 displayNeedsUpdating = true;
@@ -1520,12 +1536,12 @@ void loop() {
             break;
     }
 
-    // if(menuIndex != previousMenuIndex) {
-    //     Serial.print("Menu Index: ");
-    //     Serial.println(menuIndex);
-    // }
-    // if(currentMenu != previousMenu) {
-    //     Serial.print("Current Menu: ");
+    /*if(menuIndex != previousMenuIndex) {
+         Serial.print("Menu Index: ");
+         Serial.println(menuIndex);
+     }
+     if(currentMenu != previousMenu) {
+        Serial.print("Current Menu: ");
         switch(currentMenu) {
             case MenuState::MAIN_MENU:
                 Serial.println("Main Menu");
@@ -1581,13 +1597,16 @@ void loop() {
             case MenuState::BRIGHTNESS_LEVEL:
                 Serial.println("Brightness Level");
                 break;
-        }
-    }
-   // previousMenu = currentMenu;
-   // previousMenuIndex = menuIndex;
-    //updateCurrentState();       //this currently does nothing
-    //updateDisplay();
-    //updateBrightness();
+        } 
+    } 
+*/
+
+    previousMenu = currentMenu;
+    //previousMenuIndex = menuIndex;
+    updateCurrentState();       //this currently does nothing
+    updateDisplay();
+    updateBrightness();
+}
 
 // Reads hardware RTC and saves both reference values
 void synchronizeWithRtc() {
