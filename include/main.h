@@ -9,6 +9,7 @@ enum class State {
     RUNNING,        // Showing the time and checking the alarm
     MENU,           // Changing settings
     ALARM_RINGING,  // Alarm is sounding
+    //Removed Snooze state, as it is now handled in the RUNNING state
 };
 
 // Actions from the rotary encoder
@@ -116,6 +117,14 @@ enum class MenuState {
 
 };
 
+// Alarm menu selection
+enum class AlarmSelection {
+    ALARM_1,
+    ALARM_2,
+    ALARM_3
+};
+
+
 // Menu settings
 struct SystemSettings {
     TimeFormat timeFormat;
@@ -156,6 +165,17 @@ struct ClockTime {
     uint8_t second;  // Current second
 };
 
+// Temporary Menu Settings
+struct TempMenu {
+    SystemSettings settings;
+    AlarmConfig alarms[3];
+    ClockTime time;
+
+    bool settingsChanged;
+    bool alarmsChanged;
+    bool timeChanged;
+};
+
 // Start the clock hardware
 void initializeHardware();      // Start all hardware
 void initializeDisplay();       // Start the OLED display
@@ -172,20 +192,23 @@ ButtonEvent readButtonEvent();    // Read the buttons
 // Work with the time and alarm settings
 ClockTime readCurrentTime();                                       // Get the calculated software time
 void setCurrentTime(const ClockTime& time);                        // Set the RTC time
-void synchronizeWithRtc();                                         // Refresh software time from the RTC
-uint32_t calculateCurrentEpoch();                                  // Add elapsed ESP32 time to the RTC anchor
+void synchronizeWithRtc();                                        // Refresh software time from the RTC
+uint32_t calculateCurrentEpoch();                                 // Add elapsed ESP32 time to the RTC anchor
 void serviceClock();                                               // Refresh the shared current-time snapshot
 void serviceRtcSynchronization();                                  // Resynchronize the RTC anchor once per day
-void loadAlarmConfiguration(uint8_t alarmIndex);                   // Load one alarm's settings from memory
-void saveAlarmConfiguration(uint8_t alarmIndex);                   // Save one alarm's settings to memory
+void loadAlarmConfiguration(uint8_t alarmIndex);                    // Load one alarm's settings from memory
+void saveAlarmConfiguration(uint8_t alarmIndex);                    // Save one alarm's settings to memory
 void loadSystemSettings();                                         // Load system settings from memory
 void saveSystemSettings();                                         // Save system settings to memory
 bool isAlarmDue(const AlarmConfig& config, const ClockTime& time, int alarmIndex); // Check if the alarm should ring
 
 // Change and run the current mode
 void enterState(State newState);  // Change to a new mode
+void updateCurrentState();        // Run the current mode
 
 // Control the alarm and snooze
+void startAlarm();     // Start the alarm
+void stopAlarm();      // Stop the alarm
 void startSnooze(uint8_t alarmIndex); // Schedule an alarm to re-trigger after its snooze delay
 bool snoozeExpired(uint8_t alarmIndex, uint32_t nowEpoch); // Check a scheduled snooze
 

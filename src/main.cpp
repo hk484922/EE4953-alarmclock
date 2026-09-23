@@ -6,10 +6,13 @@
 #include <DS3231.h>
 #include <a21/ec11.hpp>
 #include <esp_timer.h>
+#include <cstdio>
 #include "main.h"
-
+//currently have a bunch of test code in here 
 namespace {
     State currentState = State::STARTUP;  // The current clock mode
+
+    State previousState = State::STARTUP; // The previous clock mode, used for testing
 
     Preferences alarm1Prefs; // Preferences for Alarm 1
     Preferences alarm2Prefs; // Preferences for Alarm 2
@@ -22,11 +25,13 @@ namespace {
     AlarmConfig tempAlarm {}; // Used for alarm menu data
 
     bool hasAlarmTriggered[3] = {false, false, false}; // Track if daily alarm has already triggered for the day
-    bool pendingAlarm[3] = {false, false, false};
 
     bool displayNeedsUpdating = true; // This will determine when clear screen function is needed
 
     uint8_t currentAlarmIndex = 0;  // Index of the currently active alarm (0, 1, or 2)
+    uint32_t alarmRingStartedAtMs = 0; // Start of the current ringing episode
+
+   // uint8_t previousMenuIndex = 0; // Track the previous menu index for testing
 
     a21::EC11 encoder; // Instance of encoder class
 
@@ -47,9 +52,12 @@ namespace {
     SystemSettings currentSystemSettings {TimeFormat::HOUR_24, false, 125}; // Default system settings
 
     MenuState currentMenu = MenuState::MAIN_MENU;
+    
+    MenuState previousMenu = MenuState::MAIN_MENU; // Track the previous menu state for testing
 
     int menuIndex = 0;
     int selectedAlarm = 0;
+
 
     constexpr int64_t ONE_DAY_US =
         24LL * 60LL * 60LL * 1000000LL;
@@ -192,6 +200,38 @@ void updateAlarmSound() {
 void stopAlarmSound() {
     alarmSoundActive = false;
     noTone(BUZZER_PIN);
+}
+
+void startAlarm() {
+    if (currentAlarmIndex >= 3) {
+        return;
+    }
+
+    menuIndex = 0;
+    currentMenu = MenuState::MAIN_MENU;
+    currentState = State::ALARM_RINGING;
+    displayNeedsUpdating = true;
+    alarmRingStartedAtMs = static_cast<uint32_t>(millis());
+    startAlarmSound(alarms[currentAlarmIndex].tone);
+}
+
+void stopAlarm() {
+    if (currentState != State::ALARM_RINGING || currentAlarmIndex >= 3) {
+        return;
+    }
+
+    stopAlarmSound();
+    alarmRingStartedAtMs = 0;
+    hasAlarmTriggered[currentAlarmIndex] = true;
+    alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
+
+    if (!alarms[currentAlarmIndex].daily) {
+        alarms[currentAlarmIndex].enabled = false;
+        saveAlarmConfiguration(currentAlarmIndex);
+    }
+
+    currentState = State::RUNNING;
+    displayNeedsUpdating = true;
 }
 
 void saveAlarmConfiguration(uint8_t alarmIndex) {
@@ -410,8 +450,11 @@ void initializeEncoder() {
     pinMode(ENCODER_A_PIN, INPUT_PULLUP);
     pinMode(ENCODER_B_PIN, INPUT_PULLUP);
     pinMode(ENCODER_BUTTON_PIN, INPUT_PULLUP);
+
+    //commented out for now, as it was causing issues due to encoder not being attatched 
     attachInterrupt(digitalPinToInterrupt(ENCODER_A_PIN), pinDidChange, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENCODER_B_PIN), pinDidChange, CHANGE);
+    
 }
 
 void initializeButtons() {
@@ -435,6 +478,16 @@ void enterState(State newState) {
     currentState = newState;
 }
 
+// Run the behavior for the current clock mode
+void updateCurrentState() {
+    switch (currentState) {
+        case State::STARTUP:        // Start hardware and load settings
+        case State::RUNNING:        // Show time and check the alarm
+        case State::MENU:           // Handle menu input
+        case State::ALARM_RINGING:  // Handle the active alarm
+            break;
+    }
+}
 
 // Run once when the ESP32 starts
 void setup() {
@@ -445,7 +498,16 @@ void setup() {
     loadSystemSettings();
     synchronizeWithRtc();
     currentTime = readCurrentTime();
+
     enterState(State::RUNNING);
+
+    Serial.begin(9600);
+    //testing alarm melodies remove before final submission
+    
+    // startAlarmSound(AlarmTone::TONE_3);
+    // currentState = State::ALARM_RINGING;
+    // currentAlarmIndex = 0;
+    
 }
 
 // Run repeatedly while the clock is powered on
@@ -456,31 +518,23 @@ void loop() {
     // Check scheduled alarms and snoozed alarms while no alarm is sounding.
     if (currentState != State::ALARM_RINGING) {
         const uint32_t currentEpoch = calculateCurrentEpoch();
-
-        // Check all three alarms and remember every alarm that is due.
         for (int i = 0; i < 3; i++) {
-            // Clear snooze data if the alarm was disabled.
-            if (!alarms[i].enabled) {
+            if (!alarms[i].enabled && alarmRuntime[i].snoozed) {
                 alarmRuntime[i] = AlarmRuntime {};
-                pendingAlarm[i] = false;
             }
-            // Allow a daily alarm to trigger again after its scheduled minute passes.
+            // Reset the trigger flag after the alarm's scheduled minute has passed.
+            // This allows the alarm to trigger again the next day.
             if (hasAlarmTriggered[i] &&
                 (currentTime.hour != alarms[i].hour ||
                 currentTime.minute != alarms[i].minute)) {
                 hasAlarmTriggered[i] = false;
             }
 
-            const bool scheduledAlarmDue =
-                isAlarmDue(alarms[i], currentTime, i);
-
-            const bool snoozedAlarmDue =
-                alarms[i].enabled &&
+            const bool scheduledAlarmDue = isAlarmDue(alarms[i], currentTime, i);
+            const bool snoozedAlarmDue = alarms[i].enabled &&
                 snoozeExpired(i, currentEpoch);
 
             if (scheduledAlarmDue || snoozedAlarmDue) {
-                // Remember this alarm even if another alarm rings first.
-                pendingAlarm[i] = true;
                 if (scheduledAlarmDue) {
                     hasAlarmTriggered[i] = true;
                     alarmRuntime[i].snoozeCount = 0;
@@ -489,27 +543,66 @@ void loop() {
                     alarmRuntime[i].snoozed = false;
                     alarmRuntime[i].snoozeWakeEpoch = 0;
                 }
-            }
-        }
-        // Start the first alarm waiting to ring.
-        for (int i = 0; i < 3; i++) {
-            if (pendingAlarm[i]) {
-                pendingAlarm[i] = false;
-
-                menuIndex = 0;
-                currentMenu = MenuState::MAIN_MENU;
-                currentState = State::ALARM_RINGING;
-                displayNeedsUpdating = true;
-                currentAlarmIndex = i;
-
-                startAlarmSound(alarms[i].tone);
+                currentAlarmIndex = static_cast<uint8_t>(i);
+                startAlarm();
                 break;
             }
         }
     }
+
     // Poll inputs
     EncoderEvent encoderEvent = readEncoderEvent();
     ButtonEvent buttonEvent = readButtonEvent();
+
+    //testing
+    if(currentState !=previousState) {
+       switch(currentState) {
+            case State::STARTUP:
+                Serial.println("Entered STARTUP state");
+                break;
+            case State::RUNNING:
+                Serial.println("Entered RUNNING state");
+                break;
+            case State::MENU:
+                Serial.println("Entered MENU state");
+                break;
+            case State::ALARM_RINGING:
+                Serial.println("Entered ALARM_RINGING state");
+                break;
+        }
+        previousState = currentState; // Update previous state after handling the change
+    }
+
+    switch(encoderEvent) {
+        case EncoderEvent::CLOCKWISE:
+            Serial.println("Encoder turned clockwise");
+            break;
+        case EncoderEvent::COUNTER_CLOCKWISE:
+            Serial.println("Encoder turned counter-clockwise");
+            break;
+        case EncoderEvent::PRESSED:
+            Serial.println("Encoder button pressed");
+            break;
+        default:
+            break;
+    }
+
+    switch(buttonEvent) {
+        case ButtonEvent::SNOOZE_PRESSED:
+            Serial.println("Snooze button pressed");
+            break;
+        case ButtonEvent::STOP_PRESSED:
+            Serial.println("Stop button pressed");
+            break;
+        case ButtonEvent::MENU_PRESSED:
+            Serial.println("Menu button pressed");
+            break;
+        case ButtonEvent::BACK_PRESSED:
+            Serial.println("Back button pressed");
+            break;
+        default:
+            break;
+    }
 
     if(encoderEvent != EncoderEvent::NONE || buttonEvent != ButtonEvent::NONE) {
         lastMenuInteractionTime = millis(); // Reset the menu timeout timer on any interaction
@@ -520,6 +613,10 @@ void loop() {
         currentState = State::RUNNING;
         displayNeedsUpdating = true;
     }
+    
+
+    // Button handling will be added as the Menu and Alarm states are implemented.
+    static_cast<void>(buttonEvent);
 
      switch (currentState) {
         case State::STARTUP:
@@ -1285,10 +1382,14 @@ void loop() {
                     if (encoderEvent == EncoderEvent::PRESSED) {
                         displayNeedsUpdating = true;
                         if (menuIndex == 0) {
-                            menuIndex = 0; // Reset menu index for time format selection
+                            menuIndex = timeFormatMenuIndex(
+                                currentSystemSettings.timeFormat
+                            );
                             currentMenu = MenuState::TIME_FORMAT;
                         } else if (menuIndex == 1) {
-                            menuIndex = 0; // Reset menu index for brightness selection
+                            menuIndex = brightnessModeMenuIndex(
+                                currentSystemSettings.manualBrightness
+                            );
                             currentMenu = MenuState::MANUAL_BRIGHTNESS;
                         } else if (menuIndex == 2) {
                             menuIndex = currentSystemSettings.brightnessLevel;
@@ -1433,40 +1534,104 @@ void loop() {
             break;
         case State::ALARM_RINGING:
         //when alarm is acknowledged or snoozed, need to set the hasAlarmTriggered flag to true for that alarm index, so it doesn't ring again for the day
-            updateAlarmSound();
-
             if (buttonEvent == ButtonEvent::STOP_PRESSED) {
-                stopAlarmSound();
-                hasAlarmTriggered[currentAlarmIndex] = true;
-                alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
-                if (!alarms[currentAlarmIndex].daily) {
-                    alarms[currentAlarmIndex].enabled = false;
-                    saveAlarmConfiguration(currentAlarmIndex);
-                }
-                currentState = State::RUNNING;
-                displayNeedsUpdating = true;
+                stopAlarm();
+            }
+            else if (alarmDurationElapsed(
+                alarms[currentAlarmIndex].soundDuration,
+                alarmRingStartedAtMs,
+                static_cast<uint32_t>(millis())
+            )) {
+                stopAlarm();
             }
             else if (buttonEvent == ButtonEvent::SNOOZE_PRESSED) {
-                stopAlarmSound();
-                hasAlarmTriggered[currentAlarmIndex] = true; // don't re-fire today's slot
-
                 const uint8_t snoozeLimit = alarms[currentAlarmIndex].snoozeLimit;
                 const bool snoozeAvailable = snoozeLimit == UNLIMITED_SNOOZE ||
                     alarmRuntime[currentAlarmIndex].snoozeCount < snoozeLimit;
                 if (snoozeAvailable) {
+                    stopAlarmSound();
+                    alarmRingStartedAtMs = 0;
+                    hasAlarmTriggered[currentAlarmIndex] = true;
                     startSnooze(currentAlarmIndex);
+                    currentState = State::RUNNING;
+                    displayNeedsUpdating = true;
                 } else {
-                    alarmRuntime[currentAlarmIndex] = AlarmRuntime {};
-                    if (!alarms[currentAlarmIndex].daily) {
-                        alarms[currentAlarmIndex].enabled = false;
-                        saveAlarmConfiguration(currentAlarmIndex);
-                    }
+                    stopAlarm();
                 }
-                currentState = State::RUNNING;
-                displayNeedsUpdating = true;
+            } else {
+                updateAlarmSound();
             }
             break;
     }
+
+    /*if(menuIndex != previousMenuIndex) {
+         Serial.print("Menu Index: ");
+         Serial.println(menuIndex);
+     }
+     if(currentMenu != previousMenu) {
+        Serial.print("Current Menu: ");
+        switch(currentMenu) {
+            case MenuState::MAIN_MENU:
+                Serial.println("Main Menu");
+                break;
+            case MenuState::CLOCK_MENU:
+                Serial.println("Clock Menu");
+                break;
+            case MenuState::CLOCK_TIME:
+                Serial.println("Clock Time");
+                break;
+            case MenuState::CLOCK_DATE:
+                Serial.println("Clock Date");
+                break;
+            case MenuState::ALARM_SELECT:
+                Serial.println("Alarm Select");
+                break;
+            case MenuState::ALARM_MENU:
+                Serial.println("Alarm Menu");
+                break;
+            case MenuState::ALARM_ENABLE:
+                Serial.println("Alarm Enable");
+                break;
+            case MenuState::ALARM_TIME:
+                Serial.println("Alarm Time");
+                break;
+            case MenuState::ALARM_DATE:
+                Serial.println("Alarm Date");
+                break;
+            case MenuState::ALARM_TYPE:
+                Serial.println("Alarm Type");
+                break;
+            case MenuState::ALARM_TONE:
+                Serial.println("Alarm Tone");
+                break;
+            case MenuState::ALARM_SNOOZE:
+                Serial.println("Alarm Snooze Delay");
+                break;
+            case MenuState::ALARM_SNOOZE_LIMIT:
+                Serial.println("Alarm Snooze Limit");
+                break;
+            case MenuState::ALARM_DURATION:
+                Serial.println("Alarm Duration");
+                break;
+            case MenuState::SYSTEM_MENU:
+                Serial.println("System Menu");
+                break;
+            case MenuState::TIME_FORMAT:
+                Serial.println("Time Format");
+                break;
+            case MenuState::MANUAL_BRIGHTNESS:
+                Serial.println("Manual Brightness");
+                break;
+            case MenuState::BRIGHTNESS_LEVEL:
+                Serial.println("Brightness Level");
+                break;
+        } 
+    } 
+*/
+
+    previousMenu = currentMenu;
+    //previousMenuIndex = menuIndex;
+    updateCurrentState();       //this currently does nothing
     updateDisplay();
     updateBrightness();
 }
@@ -1561,6 +1726,13 @@ void serviceRtcSynchronization() {
         synchronizeWithRtc();
     }
 }
+
+//Dummy function to test booting
+
+// EncoderEvent readEncoderEvent(){
+//     return EncoderEvent::NONE; // Placeholder implementation
+// }
+
 
 EncoderEvent readEncoderEvent() {
     if (buttonWasPressed(encoderButton)) {
@@ -1659,7 +1831,17 @@ void updateDisplay() {
             static_cast<unsigned>(currentTime.year));
 
         if (currentState == State::ALARM_RINGING) {                     //Alarming ringing display, lets time keep going while displaying the alarm message
-            ssd1306_printFixed(0, 0, "Alarm Ringing", STYLE_NORMAL);
+            switch(currentAlarmIndex) {
+                case 0:
+                    ssd1306_printFixed(0, 0, "Alarm 1 Ringing", STYLE_NORMAL);
+                    break;
+                case 1:
+                    ssd1306_printFixed(0, 0, "Alarm 2 Ringing", STYLE_NORMAL);
+                    break;
+                case 2:
+                    ssd1306_printFixed(0, 0, "Alarm 3 Ringing", STYLE_NORMAL);
+                    break;
+            }
             ssd1306_printFixed(0, 16, timeText, STYLE_NORMAL);
             ssd1306_printFixed(0, 32, "Snooze or Stop", STYLE_NORMAL);
         }
@@ -2014,21 +2196,61 @@ void updateDisplay() {
         break;
     }
 }
+
+
+    /*char timeText[9];
+    snprintf(
+        timeText,
+        sizeof(timeText),
+        "%02u:%02u:%02u",
+        static_cast<unsigned>(currentTime.hour),
+        static_cast<unsigned>(currentTime.minute),
+        static_cast<unsigned>(currentTime.second)
+    );
+
+    char dateText[11];
+    snprintf(
+        dateText,
+        sizeof(dateText),
+        "%02u/%02u/%04u",
+        static_cast<unsigned>(currentTime.month),
+        static_cast<unsigned>(currentTime.day),
+        static_cast<unsigned>(currentTime.year)
+    );
+
+    ssd1306_printFixed(0, 0, timeText, STYLE_NORMAL);
+    ssd1306_printFixed(0, 16, dateText, STYLE_NORMAL);
+*/
 }
 
 void updateBrightness() {
-    // If manual brightness is enabled, use the brightness selected by the user.
+    static uint32_t lastSampleMs = 0;
+    static int lastAppliedBrightness = -1;
+    static bool hasAutomaticSample = false;
+
+    uint8_t desiredBrightness;
     if (currentSystemSettings.manualBrightness) {
-        ssd1306_setContrast(currentSystemSettings.brightnessLevel);
+        desiredBrightness = currentSystemSettings.brightnessLevel;
+    } else {
+        const uint32_t nowMs = static_cast<uint32_t>(millis());
+        if (!brightnessSampleDue(nowMs, lastSampleMs, hasAutomaticSample)) {
+            return;
+        }
+
+        lastSampleMs = nowMs;
+        hasAutomaticSample = true;
+        const int lightLevel = analogRead(LIGHT_SENSOR_PIN);
+        desiredBrightness = static_cast<uint8_t>(
+            map(lightLevel, 4095, 0, 0, 255)
+        );
+    }
+
+    if (lastAppliedBrightness == desiredBrightness) {
         return;
     }
 
-    // Automatic brightness:
-    int lightLevel = analogRead(LIGHT_SENSOR_PIN);
-
-    // Convert the ESP32 ADC range (0-4095) to the OLED contrast range (0-255).
-    int brightnessLevel = map(lightLevel, 0, 4095, 0, 255); // Change the 2nd and 3rd values to calibrate
-    ssd1306_setContrast(static_cast<uint8_t>(brightnessLevel));
+    ssd1306_setContrast(desiredBrightness);
+    lastAppliedBrightness = desiredBrightness;
 }
 
 //This function returns the number of days in a given month, accounting for leap years.
